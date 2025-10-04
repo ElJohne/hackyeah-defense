@@ -411,6 +411,7 @@ function App() {
   const trajectoryRefs = useRef({});
   const startMarkerRefs = useRef({});
   const endMarkerRefs = useRef({});
+  const mapRef = useRef(null);
   const polandCenter = [52.0976, 19.1451];
   const polandZoom = 6.5;
   const mapMinZoom = 5.5;
@@ -461,17 +462,16 @@ function App() {
     color: '#1f2933',
     fillColor: '#ffffff',
     fillOpacity: 1,
+    className: 'drone-marker',
   };
 
-  const createEndMarkerOptions = (riskLevel, isSelected) => ({
+  const createEndMarkerOptions = (riskLevel) => ({
     radius: 7,
     weight: 2,
     color: '#ffffff',
     fillColor: riskColors[riskLevel],
     fillOpacity: 1,
-    className: isSelected
-      ? 'drone-marker drone-marker--selected'
-      : 'drone-marker',
+    className: 'drone-marker',
   });
 
   const formatCoordinate = ([lat, lon]) => `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
@@ -506,14 +506,76 @@ function App() {
   }, [selectedTargetId]);
 
   useEffect(() => {
-    if (selectedTargetId == null) {
-      return;
-    }
+    Object.entries(trajectoryRefs.current).forEach(([id, polyline]) => {
+      if (!polyline) {
+        return;
+      }
 
-    trajectoryRefs.current[selectedTargetId]?.bringToFront();
-    endMarkerRefs.current[selectedTargetId]?.bringToFront();
-    startMarkerRefs.current[selectedTargetId]?.bringToFront();
+      const element = polyline.getElement();
+      if (!element) {
+        return;
+      }
+
+      const isSelected = Number(id) === selectedTargetId;
+      element.classList.add('trajectory');
+      element.classList.toggle('trajectory--selected', isSelected);
+
+      if (isSelected) {
+        polyline.bringToFront();
+      }
+    });
+
+    Object.entries(startMarkerRefs.current).forEach(([id, marker]) => {
+      if (!marker) {
+        return;
+      }
+
+      const element = marker.getElement();
+      if (!element) {
+        return;
+      }
+
+      const isSelected = Number(id) === selectedTargetId;
+      element.classList.add('drone-marker');
+      element.classList.toggle('drone-marker--selected', isSelected);
+
+      if (isSelected) {
+        marker.bringToFront();
+      }
+    });
+
+    Object.entries(endMarkerRefs.current).forEach(([id, marker]) => {
+      if (!marker) {
+        return;
+      }
+
+      const element = marker.getElement();
+      if (!element) {
+        return;
+      }
+
+      const isSelected = Number(id) === selectedTargetId;
+      element.classList.add('drone-marker');
+      element.classList.toggle('drone-marker--selected', isSelected);
+
+      if (isSelected) {
+        marker.bringToFront();
+      }
+    });
   }, [selectedTargetId]);
+
+  useEffect(() => {
+    const handleDocumentClick = (event) => {
+      if (event.target.closest('.leaflet-popup') || event.target.closest('.leaflet-interactive')) {
+        return;
+      }
+
+      mapRef.current?.closePopup();
+    };
+
+    document.addEventListener('click', handleDocumentClick);
+    return () => document.removeEventListener('click', handleDocumentClick);
+  }, []);
 
   const handleSelectTarget = (targetId) => {
     setSelectedTargetId(targetId);
@@ -527,7 +589,7 @@ function App() {
   };
 
   const handleDetailsOpen = (targetId) => {
-    setSelectedTargetId(targetId);
+    handleSelectTarget(targetId);
     setDetailsTargetId(targetId);
   };
 
@@ -538,7 +600,7 @@ function App() {
       return;
     }
 
-    setSelectedTargetId(target.id);
+    handleSelectTarget(target.id);
 
     const isSuccess = outcome === definition.successOutcome;
     const message = isSuccess ? definition.successMessage : definition.errorMessage;
@@ -692,13 +754,15 @@ function App() {
             maxBounds={regionalBounds}
             maxBoundsViscosity={1}
             className="map-container"
+            whenCreated={(mapInstance) => {
+              mapRef.current = mapInstance;
+            }}
           >
             <TileLayer
               attribution="&copy; OpenStreetMap contributors"
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
             {targets.map((target) => {
-              const isSelected = selectedTargetId === target.id;
               const pathColor = mitigatedTargets[target.id]
                 ? mitigationColor
                 : riskColors[target.riskLevel];
@@ -717,7 +781,7 @@ function App() {
                     pathOptions={{
                       ...trajectoryOptions,
                       color: pathColor,
-                      className: isSelected ? 'trajectory trajectory--selected' : 'trajectory',
+                      className: 'trajectory',
                     }}
                     eventHandlers={{
                       click: () => handleSelectTarget(target.id),
@@ -732,12 +796,7 @@ function App() {
                       }
                     }}
                     center={target.startPosition}
-                    pathOptions={{
-                      ...startMarkerOptions,
-                      className: isSelected
-                        ? 'drone-marker drone-marker--selected'
-                        : 'drone-marker',
-                    }}
+                    pathOptions={startMarkerOptions}
                     eventHandlers={{
                       click: () => handleSelectTarget(target.id),
                     }}
@@ -757,7 +816,7 @@ function App() {
                       }
                     }}
                     center={target.endPosition}
-                    pathOptions={createEndMarkerOptions(target.riskLevel, isSelected)}
+                    pathOptions={createEndMarkerOptions(target.riskLevel)}
                     eventHandlers={{
                       click: () => handleSelectTarget(target.id),
                     }}
