@@ -5,6 +5,7 @@ import {
   Popup,
   Polyline,
   CircleMarker,
+  Circle,
   Marker,
   Tooltip,
 } from 'react-leaflet';
@@ -29,8 +30,110 @@ const trajectoryOptions = {
 
 const mitigationColor = '#2563eb';
 
+const radioCoverageRadiusMeters = 30000;
+const radioCoverageStyle = {
+  color: '#1d4ed8',
+  weight: 1.2,
+  dashArray: '6 10',
+  fillColor: '#3b82f6',
+  fillOpacity: 0.1,
+};
+
+const radioStations = [
+  {
+    id: 'szczecin',
+    name: 'Szczecin Mobile Intercept Node',
+    position: [53.4285, 14.5528],
+  },
+  {
+    id: 'zielona-gora',
+    name: 'Zielona Góra Mobile Intercept Node',
+    position: [51.9356, 15.5062],
+  },
+  {
+    id: 'poznan',
+    name: 'Poznań Mobile Intercept Node',
+    position: [52.4064, 16.9252],
+  },
+  {
+    id: 'bydgoszcz',
+    name: 'Bydgoszcz Mobile Intercept Node',
+    position: [53.1235, 18.0084],
+  },
+  {
+    id: 'gdansk',
+    name: 'Gdańsk Mobile Intercept Node',
+    position: [54.352, 18.6466],
+  },
+  {
+    id: 'olsztyn',
+    name: 'Olsztyn Mobile Intercept Node',
+    position: [53.7784, 20.4801],
+  },
+  {
+    id: 'warsaw',
+    name: 'Warsaw Mobile Intercept Node',
+    position: [52.2297, 21.0122],
+  },
+  {
+    id: 'lodz',
+    name: 'Łódź Mobile Intercept Node',
+    position: [51.7592, 19.455],
+  },
+  {
+    id: 'lublin',
+    name: 'Lublin Mobile Intercept Node',
+    position: [51.2465, 22.5684],
+  },
+  {
+    id: 'rzeszow',
+    name: 'Rzeszów Mobile Intercept Node',
+    position: [50.0412, 21.9991],
+  },
+  {
+    id: 'krakow',
+    name: 'Kraków Mobile Intercept Node',
+    position: [50.0647, 19.945],
+  },
+  {
+    id: 'katowice',
+    name: 'Katowice Mobile Intercept Node',
+    position: [50.2709, 19.039],
+  },
+  {
+    id: 'wroclaw',
+    name: 'Wrocław Mobile Intercept Node',
+    position: [51.1079, 17.0385],
+  },
+  {
+    id: 'bialystok',
+    name: 'Białystok Mobile Intercept Node',
+    position: [53.1325, 23.1688],
+  },
+  {
+    id: 'suwalki',
+    name: 'Suwałki Mobile Intercept Node',
+    position: [54.1117, 22.9302],
+  },
+];
+
 const toRadians = (value) => (value * Math.PI) / 180;
 const toDegrees = (value) => (value * 180) / Math.PI;
+const EARTH_RADIUS_METERS = 6371000;
+
+const computeDistanceMeters = ([lat1, lon1], [lat2, lon2]) => {
+  const φ1 = toRadians(lat1);
+  const φ2 = toRadians(lat2);
+  const Δφ = toRadians(lat2 - lat1);
+  const Δλ = toRadians(lon2 - lon1);
+
+  const a =
+    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return EARTH_RADIUS_METERS * c;
+};
 
 const computeHeading = (track) => {
   if (!track || track.length < 2) {
@@ -485,6 +588,9 @@ function App() {
   const [mitigatedTargets, setMitigatedTargets] = useState({});
   const [actionLog, setActionLog] = useState([]);
   const [riskFilters, setRiskFilters] = useState([]);
+  const [showRadioStations, setShowRadioStations] = useState(true);
+  const [notifyingStations, setNotifyingStations] = useState(() => new Set());
+  const [activeStationId, setActiveStationId] = useState(null);
   const [usedActions, setUsedActions] = useState({});
   const [targetOrder, setTargetOrder] = useState(() => rawTargets.map((target) => target.id));
   const listRefs = useRef({});
@@ -494,6 +600,7 @@ function App() {
   const actionTooltipTimersRef = useRef({});
   const droneIconCacheRef = useRef({});
   const mapRef = useRef(null);
+  const notificationTimers = useRef({});
   const polandCenter = [52.0976, 19.1451];
   const polandZoom = 6.5;
   const mapMinZoom = 5.5;
@@ -502,6 +609,39 @@ function App() {
     [47.0, 11.0],
     [56.0, 27.0],
   ];
+
+  const radioStationIcon = useMemo(
+    () =>
+      L.divIcon({
+        className: 'radio-station-icon',
+        iconSize: [48, 48],
+        iconAnchor: [24, 24],
+        popupAnchor: [0, -24],
+        html: `
+          <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Mobile interception station">
+            <circle cx="24" cy="24" r="22" fill="rgba(37, 99, 235, 0.12)" />
+            <circle cx="24" cy="24" r="14" fill="rgba(37, 99, 235, 0.35)" />
+            <circle cx="24" cy="24" r="6" fill="#1d4ed8" />
+            <path d="M24 10v8M24 30v8M10 24h8M30 24h8" stroke="#1d4ed8" stroke-width="2.5" stroke-linecap="round" />
+          </svg>
+        `,
+      }),
+    [],
+  );
+
+  const radioNotificationIcon = useMemo(
+    () =>
+      L.divIcon({
+        className: 'radio-notify-marker',
+        iconSize: [96, 96],
+        iconAnchor: [48, 48],
+        html: `
+          <span class="radio-notify__pulse"></span>
+          <span class="radio-notify__pulse radio-notify__pulse--delay"></span>
+        `,
+      }),
+    [],
+  );
 
   const targets = useMemo(
     () =>
@@ -546,6 +686,47 @@ function App() {
     });
   }, []);
 
+  const handleNotifyStation = useCallback((stationId) => {
+    setNotifyingStations((prev) => {
+      const next = new Set(prev);
+      next.add(stationId);
+      return next;
+    });
+
+    if (notificationTimers.current[stationId]) {
+      clearTimeout(notificationTimers.current[stationId]);
+    }
+
+    notificationTimers.current[stationId] = setTimeout(() => {
+      setNotifyingStations((prev) => {
+        const next = new Set(prev);
+        next.delete(stationId);
+        return next;
+      });
+
+      delete notificationTimers.current[stationId];
+    }, 2400);
+  }, []);
+
+  useEffect(() => {
+    const timersRef = notificationTimers.current;
+
+    return () => {
+      Object.values(timersRef).forEach((timeoutId) => {
+        clearTimeout(timeoutId);
+      });
+    };
+  }, [notificationTimers]);
+
+  const toggleRadioStations = useCallback(() => {
+    setShowRadioStations((prev) => !prev);
+  }, []);
+
+  useEffect(() => {
+    if (!showRadioStations) {
+      setActiveStationId(null);
+    }
+  }, [showRadioStations]);
   const orderedTargets = useMemo(() => {
     const targetMap = new Map(targets.map((target) => [target.id, target]));
     return targetOrder.map((id) => targetMap.get(id)).filter(Boolean);
@@ -559,6 +740,37 @@ function App() {
     [orderedTargets, riskFilters],
   );
 
+  const engagedStations = useMemo(() => {
+    const engaged = new Set();
+    // const covered = new Set();
+
+    targets.forEach((target) => {
+      radioStations.forEach((station) => {
+        const distance = computeDistanceMeters(station.position, target.endPosition);
+
+        if (distance <= radioCoverageRadiusMeters) {
+          engaged.add(station.id);
+          // return true;
+        }
+
+        // return false;
+      });
+
+      // if (isCovered) {
+      //   covered.add(target.id);
+      // }
+    });
+
+    return engaged; //{ engagedStations: engaged, coveredTargets: covered };
+  }, [targets]);
+
+  const activeStation = useMemo(() => {
+    if (!activeStationId) {
+      return null;
+    }
+
+    return radioStations.find((station) => station.id === activeStationId) ?? null;
+  }, [activeStationId]);
   const totalActionCount = useMemo(() => Object.keys(actionDefinitions).length, []);
 
   const getDroneIcon = useCallback((riskLevel, heading) => {
@@ -968,6 +1180,16 @@ function App() {
       <header className="app-header">
         <h1>Drone Risk Dashboard</h1>
         <div className="app-header-actions">
+          <button
+            type="button"
+            className={`layer-toggle${showRadioStations ? ' layer-toggle--active' : ''}`}
+            onClick={toggleRadioStations}
+            aria-pressed={showRadioStations}
+            aria-label={showRadioStations ? 'Hide mobile intercept nodes' : 'Show mobile intercept nodes'}
+            title={showRadioStations ? 'Hide mobile intercept nodes' : 'Show mobile intercept nodes'}
+          >
+            MIN
+          </button>
           <nav className="risk-filter" aria-label="Filter drones by risk level">
             {riskLevels.map((level) => {
               const isActive = riskFilters.includes(level);
@@ -1129,10 +1351,92 @@ function App() {
               attribution="&copy; OpenStreetMap contributors"
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
+            {showRadioStations &&
+              radioStations.map((station) => {
+                const isStationEngaged = engagedStations.has(station.id);
+                const isActiveStation = activeStationId === station.id;
+                const coverageClassName = [
+                  'radio-coverage',
+                  isStationEngaged ? 'radio-coverage--active' : '',
+                  isActiveStation ? 'radio-coverage--selected' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ');
+
+                return (
+                  <Fragment key={station.id}>
+                    {notifyingStations.has(station.id) && (
+                      <Marker
+                        position={station.position}
+                        icon={radioNotificationIcon}
+                        interactive={false}
+                      />
+                    )}
+                    <Circle
+                      center={station.position}
+                      radius={radioCoverageRadiusMeters}
+                      pathOptions={{
+                        ...radioCoverageStyle,
+                        className: coverageClassName,
+                      }}
+                      eventHandlers={{
+                        click: () => setActiveStationId(station.id),
+                      }}
+                    />
+                    <Marker
+                      position={station.position}
+                      icon={radioStationIcon}
+                      eventHandlers={{
+                        click: () => setActiveStationId(station.id),
+                      }}
+                    >
+                      <Tooltip direction="top" offset={[0, -28]} interactive>
+                        <div className="radio-tooltip">
+                          <strong>{station.name}</strong>
+                          <br />
+                          Coverage radius: 30 km
+                          <div className="radio-tooltip__actions">
+                            <button
+                              type="button"
+                              className="radio-tooltip__notify-button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleNotifyStation(station.id);
+                              }}
+                              disabled={!isStationEngaged || notifyingStations.has(station.id)}
+                            >
+                              Notify
+                            </button>
+                            {!isStationEngaged && (
+                              <span className="radio-tooltip__status radio-tooltip__status--idle">
+                                No tracked drones inside coverage
+                              </span>
+                            )}
+                            {isStationEngaged && !notifyingStations.has(station.id) && (
+                              <span className="radio-tooltip__status radio-tooltip__status--armed">
+                                Drone detected in airspace
+                              </span>
+                            )}
+                            {notifyingStations.has(station.id) && (
+                              <span
+                                className="radio-tooltip__status radio-tooltip__status--sent"
+                                role="status"
+                              >
+                                Notification dispatched
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </Tooltip>
+                    </Marker>
+                  </Fragment>
+                );
+              })}
             {filteredTargets.map((target) => {
               const pathColor = mitigatedTargets[target.id]
                 ? mitigationColor
                 : riskColors[target.riskLevel];
+              // const isTargetCovered = coveredTargets.has(target.id);
 
               return (
                 <Fragment key={target.id}>
@@ -1174,6 +1478,22 @@ function App() {
                       Launch position: {formatCoordinate(target.startPosition)}
                     </Popup>
                   </CircleMarker>
+                  {/*{isTargetCovered && (*/}
+                  {/*  <CircleMarker*/}
+                  {/*    center={target.endPosition}*/}
+                  {/*    radius={18}*/}
+                  {/*    interactive={false}*/}
+                  {/*    pane="shadowPane"*/}
+                  {/*    pathOptions={{*/}
+                  {/*      color: '#1d4ed8',*/}
+                  {/*      weight: 2,*/}
+                  {/*      fill: true,*/}
+                  {/*      fillColor: '#3b82f6',*/}
+                  {/*      fillOpacity: 0.18,*/}
+                  {/*      className: 'drone-coverage',*/}
+                  {/*    }}*/}
+                  {/*  />*/}
+                  {/*)}*/}
                   <Marker
                     ref={(instance) => {
                       if (instance) {
@@ -1211,6 +1531,63 @@ function App() {
               );
             })}
           </MapContainer>
+          {activeStation && (
+            <div
+              className="station-info-panel"
+              role="dialog"
+              aria-modal="false"
+              aria-label={`${activeStation.name} coverage details`}
+            >
+              <div className="station-info-panel__header">
+                <div>
+                  <h3>{activeStation.name}</h3>
+                  <p>Coverage radius: 30 km</p>
+                </div>
+                <button
+                  type="button"
+                  className="station-info-panel__close"
+                  aria-label="Close station details"
+                  onClick={() => setActiveStationId(null)}
+                >
+                  ×
+                </button>
+              </div>
+              <div className="station-info-panel__content">
+                <div className="radio-tooltip__actions">
+                  <button
+                    type="button"
+                    className="radio-tooltip__notify-button"
+                    onClick={() => handleNotifyStation(activeStation.id)}
+                    disabled={
+                      !engagedStations.has(activeStation.id) ||
+                      notifyingStations.has(activeStation.id)
+                    }
+                  >
+                    Notify
+                  </button>
+                  {!engagedStations.has(activeStation.id) && (
+                    <span className="radio-tooltip__status radio-tooltip__status--idle">
+                      No tracked drones inside coverage
+                    </span>
+                  )}
+                  {engagedStations.has(activeStation.id) &&
+                    !notifyingStations.has(activeStation.id) && (
+                      <span className="radio-tooltip__status radio-tooltip__status--armed">
+                        Drone detected in airspace
+                      </span>
+                    )}
+                  {notifyingStations.has(activeStation.id) && (
+                    <span
+                      className="radio-tooltip__status radio-tooltip__status--sent"
+                      role="status"
+                    >
+                      Notification dispatched
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
           <div className="map-legend" aria-label="Risk legend">
             <h3>Risk Legend</h3>
             <ul>
@@ -1229,6 +1606,10 @@ function App() {
               <span className="legend-entry">
                 <span className="legend-end" aria-hidden />
                 Current position
+              </span>
+              <span className="legend-entry">
+                <span className="legend-radio" aria-hidden />
+                Mobile intercept station
               </span>
             </div>
           </div>
