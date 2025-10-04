@@ -1,5 +1,12 @@
-import { Fragment, useState } from 'react';
-import { MapContainer, TileLayer, Popup, Polyline, CircleMarker } from 'react-leaflet';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  MapContainer,
+  TileLayer,
+  Popup,
+  Polyline,
+  CircleMarker,
+  Tooltip,
+} from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import './App.css';
 
@@ -14,6 +21,35 @@ const trajectoryOptions = {
   opacity: 0.85,
   dashArray: '6 8',
   lineCap: 'round',
+};
+
+const mitigationColor = '#2563eb';
+
+const actionDefinitions = {
+  simDetach: {
+    label: 'SIM Detach',
+    successOutcome: 'allowed',
+    successMessage: 'Cellular C2 suspected; session detached.',
+    errorOutcome: 'no-effect',
+    errorMessage: 'No cellular control detected (likely RF/LOS).',
+    buttonClass: 'action-button action-button--blue',
+  },
+  cyberTakeover: {
+    label: 'Cyber Takeover',
+    successOutcome: 'allowed',
+    successMessage: 'Compatible C2 link; sterile LZ available.',
+    errorOutcome: 'failed',
+    errorMessage: 'No compatible C2 link discovered (unknown/encrypted).',
+    buttonClass: 'action-button action-button--blue',
+  },
+  directionalJam: {
+    label: 'Directional Jam',
+    successOutcome: 'allowed',
+    successMessage: 'Interlocks passed (ADS-B/GNSS corridor).',
+    errorOutcome: 'blocked',
+    errorMessage: 'ADS-B conflict — manned aircraft in vicinity.',
+    buttonClass: 'action-button action-button--red',
+  },
 };
 
 const rawTargets = [
@@ -61,6 +97,11 @@ const rawTargets = [
       repeatSighting: true,
       nearMannedCorridor: true,
     },
+    actionOutcomes: {
+      simDetach: 'allowed',
+      cyberTakeover: 'failed',
+      directionalJam: 'allowed',
+    },
   },
   {
     id: 2,
@@ -107,6 +148,11 @@ const rawTargets = [
       missingRID: true,
       repeatSighting: false,
       nearMannedCorridor: true,
+    },
+    actionOutcomes: {
+      simDetach: 'no-effect',
+      cyberTakeover: 'allowed',
+      directionalJam: 'blocked',
     },
   },
   {
@@ -157,6 +203,11 @@ const rawTargets = [
       repeatSighting: true,
       nearMannedCorridor: false,
     },
+    actionOutcomes: {
+      simDetach: 'allowed',
+      cyberTakeover: 'allowed',
+      directionalJam: 'allowed',
+    },
   },
   {
     id: 4,
@@ -199,6 +250,11 @@ const rawTargets = [
       missingRID: false,
       repeatSighting: true,
       nearMannedCorridor: false,
+    },
+    actionOutcomes: {
+      simDetach: 'no-effect',
+      cyberTakeover: 'failed',
+      directionalJam: 'blocked',
     },
   },
   {
@@ -243,6 +299,11 @@ const rawTargets = [
       repeatSighting: false,
       nearMannedCorridor: false,
     },
+    actionOutcomes: {
+      simDetach: 'no-effect',
+      cyberTakeover: 'failed',
+      directionalJam: 'blocked',
+    },
   },
   {
     id: 6,
@@ -285,6 +346,11 @@ const rawTargets = [
       missingRID: true,
       repeatSighting: true,
       nearMannedCorridor: false,
+    },
+    actionOutcomes: {
+      simDetach: 'allowed',
+      cyberTakeover: 'failed',
+      directionalJam: 'allowed',
     },
   },
 ];
@@ -336,7 +402,16 @@ const computeRisk = (riskFactors) => {
 };
 
 function App() {
+  const [detailsTargetId, setDetailsTargetId] = useState(null);
   const [selectedTargetId, setSelectedTargetId] = useState(null);
+  const [toast, setToast] = useState(null);
+  const [actionResults, setActionResults] = useState({});
+  const [mitigatedTargets, setMitigatedTargets] = useState({});
+  const listRefs = useRef({});
+  const trajectoryRefs = useRef({});
+  const startMarkerRefs = useRef({});
+  const endMarkerRefs = useRef({});
+  const mapRef = useRef(null);
   const polandCenter = [52.0976, 19.1451];
   const polandZoom = 6.5;
   const mapMinZoom = 5.5;
@@ -346,15 +421,40 @@ function App() {
     [56.0, 27.0],
   ];
 
-  const targets = rawTargets.map((target, index) => ({
-    ...computeRisk(target.riskFactors),
-    callSign: `Drone-${String(index + 1).padStart(3, '0')}`,
-    id: target.id,
-    track: target.track,
-    startPosition: target.track[0],
-    endPosition: target.track[target.track.length - 1],
-    riskFactors: target.riskFactors,
-  }));
+  const targets = useMemo(
+    () =>
+      rawTargets.map((target, index) => ({
+        ...computeRisk(target.riskFactors),
+        callSign: `Drone-${String(index + 1).padStart(3, '0')}`,
+        id: target.id,
+        track: target.track,
+        startPosition: target.track[0],
+        endPosition: target.track[target.track.length - 1],
+        riskFactors: target.riskFactors,
+        actionOutcomes: target.actionOutcomes,
+      })),
+    [],
+  );
+
+  useEffect(() => {
+    if (!toast) {
+      return undefined;
+    }
+
+    const timer = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setDetailsTargetId(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const startMarkerOptions = {
     radius: 6,
@@ -362,6 +462,7 @@ function App() {
     color: '#1f2933',
     fillColor: '#ffffff',
     fillOpacity: 1,
+    className: 'drone-marker',
   };
 
   const createEndMarkerOptions = (riskLevel) => ({
@@ -370,9 +471,163 @@ function App() {
     color: '#ffffff',
     fillColor: riskColors[riskLevel],
     fillOpacity: 1,
+    className: 'drone-marker',
   });
 
   const formatCoordinate = ([lat, lon]) => `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+
+  const legendItems = [
+    ...Object.entries(riskColors).map(([level, color]) => ({
+      key: level,
+      label: `${level} risk`,
+      color,
+    })),
+    {
+      key: 'Mitigated',
+      label: 'Mitigated trajectory',
+      color: mitigationColor,
+    },
+  ];
+
+  const selectedTarget = useMemo(
+    () => targets.find((target) => target.id === detailsTargetId) || null,
+    [detailsTargetId, targets],
+  );
+
+  useEffect(() => {
+    if (selectedTargetId == null) {
+      return;
+    }
+
+    const element = listRefs.current[selectedTargetId];
+    if (element) {
+      element.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+  }, [selectedTargetId]);
+
+  useEffect(() => {
+    Object.entries(trajectoryRefs.current).forEach(([id, polyline]) => {
+      if (!polyline) {
+        return;
+      }
+
+      const element = polyline.getElement();
+      if (!element) {
+        return;
+      }
+
+      const isSelected = Number(id) === selectedTargetId;
+      element.classList.add('trajectory');
+      element.classList.toggle('trajectory--selected', isSelected);
+
+      if (isSelected) {
+        polyline.bringToFront();
+      }
+    });
+
+    Object.entries(startMarkerRefs.current).forEach(([id, marker]) => {
+      if (!marker) {
+        return;
+      }
+
+      const element = marker.getElement();
+      if (!element) {
+        return;
+      }
+
+      const isSelected = Number(id) === selectedTargetId;
+      element.classList.add('drone-marker');
+      element.classList.toggle('drone-marker--selected', isSelected);
+
+      if (isSelected) {
+        marker.bringToFront();
+      }
+    });
+
+    Object.entries(endMarkerRefs.current).forEach(([id, marker]) => {
+      if (!marker) {
+        return;
+      }
+
+      const element = marker.getElement();
+      if (!element) {
+        return;
+      }
+
+      const isSelected = Number(id) === selectedTargetId;
+      element.classList.add('drone-marker');
+      element.classList.toggle('drone-marker--selected', isSelected);
+
+      if (isSelected) {
+        marker.bringToFront();
+      }
+    });
+  }, [selectedTargetId]);
+
+  useEffect(() => {
+    const handleDocumentClick = (event) => {
+      if (event.target.closest('.leaflet-popup') || event.target.closest('.leaflet-interactive')) {
+        return;
+      }
+
+      mapRef.current?.closePopup();
+    };
+
+    document.addEventListener('click', handleDocumentClick);
+    return () => document.removeEventListener('click', handleDocumentClick);
+  }, []);
+
+  const handleSelectTarget = (targetId) => {
+    setSelectedTargetId(targetId);
+  };
+
+  const handleCardKeyDown = (event, targetId) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      handleSelectTarget(targetId);
+    }
+  };
+
+  const handleDetailsOpen = (targetId) => {
+    handleSelectTarget(targetId);
+    setDetailsTargetId(targetId);
+  };
+
+  const handleAction = (target, actionKey) => {
+    const definition = actionDefinitions[actionKey];
+    const outcome = target.actionOutcomes?.[actionKey];
+    if (!definition || !outcome) {
+      return;
+    }
+
+    handleSelectTarget(target.id);
+
+    const isSuccess = outcome === definition.successOutcome;
+    const message = isSuccess ? definition.successMessage : definition.errorMessage;
+    const status = isSuccess ? 'success' : 'error';
+
+    setActionResults((prev) => ({
+      ...prev,
+      [target.id]: {
+        label: definition.label,
+        message,
+        status,
+      },
+    }));
+
+    setMitigatedTargets((prev) => ({
+      ...prev,
+      [target.id]: true,
+    }));
+
+    setToast({
+      id: target.id,
+      label: `${definition.label} · ${target.callSign}`,
+      message,
+      status,
+      timestamp: Date.now(),
+    });
+  };
 
   return (
     <div className="app">
@@ -383,25 +638,46 @@ function App() {
         <aside className="sidebar" aria-label="Target list">
           <h2>Targets</h2>
           <ul className="target-list">
-            {targets.map((target) => (
-              <li key={target.id}>
-                <span
-                  className="risk-indicator"
-                  style={{ backgroundColor: riskColors[target.riskLevel] }}
-                  aria-hidden
-                />
-                <div className="target-content">
+            {targets.map((target) => {
+              const isSelected = selectedTargetId === target.id;
+              const isDetailsOpen = detailsTargetId === target.id;
+
+              return (
+                <li
+                  key={target.id}
+                  ref={(node) => {
+                    if (node) {
+                      listRefs.current[target.id] = node;
+                    } else {
+                      delete listRefs.current[target.id];
+                    }
+                  }}
+                  className={`target-card${isSelected ? ' target-card--selected' : ''}${
+                    isDetailsOpen ? ' target-card--active' : ''
+                  }`}
+                  onClick={() => handleSelectTarget(target.id)}
+                  onKeyDown={(event) => handleCardKeyDown(event, target.id)}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={isSelected}
+                >
+                  <span
+                    className="risk-indicator"
+                    style={{ backgroundColor: riskColors[target.riskLevel] }}
+                    aria-hidden
+                  />
+                  <div className="target-content">
                   <div className="target-header">
                     <strong>{target.callSign}</strong>
                     <button
                       type="button"
                       className="details-button"
-                      onClick={() =>
-                        setSelectedTargetId((current) =>
-                          current === target.id ? null : target.id,
-                        )
-                      }
-                      aria-expanded={selectedTargetId === target.id}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        handleDetailsOpen(target.id);
+                      }}
+                      aria-haspopup="dialog"
+                      aria-expanded={isDetailsOpen}
                     >
                       Details
                     </button>
@@ -422,29 +698,53 @@ function App() {
                       <dd>{formatCoordinate(target.endPosition)}</dd>
                     </div>
                   </dl>
-                  {selectedTargetId === target.id && (
-                    <ul className="factor-breakdown">
-                      {Object.entries(riskWeights).map(([factor, weight]) => {
-                        const triggered = target.riskFactors[factor];
-                        const points = triggered ? weight : 0;
+                  <div className="action-panel action-panel--inline">
+                    <h4>Response actions</h4>
+                    <div className="action-buttons" role="group" aria-label="Mitigation actions">
+                      {Object.entries(actionDefinitions).map(([key, definition]) => {
+                        const outcome = target.actionOutcomes?.[key];
+                        const isDisabled = !outcome;
                         return (
-                          <li key={factor}>
-                            <span className="factor-label">{riskFactorDetails[factor]}</span>
-                            <span className="factor-result">
-                              {triggered ? 'Yes' : 'No'}
-                              <span className="factor-points">{` (+${points})`}</span>
-                            </span>
-                          </li>
+                          <button
+                            key={key}
+                            type="button"
+                            className={definition.buttonClass}
+                            onClick={() => handleAction(target, key)}
+                            disabled={isDisabled}
+                          >
+                            {definition.label}
+                          </button>
                         );
                       })}
-                    </ul>
-                  )}
+                    </div>
+                    {actionResults[target.id] && (
+                      <div
+                        className={`action-status action-status--${actionResults[target.id].status}`}
+                        role="status"
+                      >
+                        <span className="action-status-label">{actionResults[target.id].label}</span>
+                        <span className="action-status-message">{actionResults[target.id].message}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </li>
-            ))}
+              );
+            })}
           </ul>
         </aside>
         <main className="map-wrapper" aria-label="Map display">
+          {toast && (
+            <div
+              key={toast.timestamp}
+              className={`action-toast action-toast--${toast.status}`}
+              role="status"
+              aria-live="polite"
+            >
+              <strong>{toast.label}</strong>
+              <span>{toast.message}</span>
+            </div>
+          )}
           <MapContainer
             center={polandCenter}
             zoom={polandZoom}
@@ -454,49 +754,103 @@ function App() {
             maxBounds={regionalBounds}
             maxBoundsViscosity={1}
             className="map-container"
+            whenCreated={(mapInstance) => {
+              mapRef.current = mapInstance;
+            }}
           >
             <TileLayer
               attribution="&copy; OpenStreetMap contributors"
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-            {targets.map((target) => (
-              <Fragment key={target.id}>
-                <Polyline
-                  positions={target.track}
-                  pathOptions={{
-                    ...trajectoryOptions,
-                    color: riskColors[target.riskLevel],
-                  }}
-                />
-                <CircleMarker center={target.startPosition} pathOptions={startMarkerOptions}>
-                  <Popup>
-                    <strong>{target.callSign}</strong>
-                    <br />
-                    Launch position: {formatCoordinate(target.startPosition)}
-                  </Popup>
-                </CircleMarker>
-                <CircleMarker
-                  center={target.endPosition}
-                  pathOptions={createEndMarkerOptions(target.riskLevel)}
-                >
-                  <Popup>
-                    <strong>{target.callSign}</strong>
-                    <br />
-                    Current position: {formatCoordinate(target.endPosition)}
-                    <br />
-                    Risk: {target.riskLevel} ({target.riskScore})
-                  </Popup>
-                </CircleMarker>
-              </Fragment>
-            ))}
+            {targets.map((target) => {
+              const pathColor = mitigatedTargets[target.id]
+                ? mitigationColor
+                : riskColors[target.riskLevel];
+
+              return (
+                <Fragment key={target.id}>
+                  <Polyline
+                    ref={(instance) => {
+                      if (instance) {
+                        trajectoryRefs.current[target.id] = instance;
+                      } else {
+                        delete trajectoryRefs.current[target.id];
+                      }
+                    }}
+                    positions={target.track}
+                    pathOptions={{
+                      ...trajectoryOptions,
+                      color: pathColor,
+                      className: 'trajectory',
+                    }}
+                    eventHandlers={{
+                      click: () => handleSelectTarget(target.id),
+                    }}
+                  />
+                  <CircleMarker
+                    ref={(instance) => {
+                      if (instance) {
+                        startMarkerRefs.current[target.id] = instance;
+                      } else {
+                        delete startMarkerRefs.current[target.id];
+                      }
+                    }}
+                    center={target.startPosition}
+                    pathOptions={startMarkerOptions}
+                    eventHandlers={{
+                      click: () => handleSelectTarget(target.id),
+                    }}
+                  >
+                    <Popup>
+                      <strong>{target.callSign}</strong>
+                      <br />
+                      Launch position: {formatCoordinate(target.startPosition)}
+                    </Popup>
+                  </CircleMarker>
+                  <CircleMarker
+                    ref={(instance) => {
+                      if (instance) {
+                        endMarkerRefs.current[target.id] = instance;
+                      } else {
+                        delete endMarkerRefs.current[target.id];
+                      }
+                    }}
+                    center={target.endPosition}
+                    pathOptions={createEndMarkerOptions(target.riskLevel)}
+                    eventHandlers={{
+                      click: () => handleSelectTarget(target.id),
+                    }}
+                  >
+                    <Popup>
+                      <strong>{target.callSign}</strong>
+                      <br />
+                      Current position: {formatCoordinate(target.endPosition)}
+                      <br />
+                      Risk: {target.riskLevel} ({target.riskScore})
+                    </Popup>
+                    {actionResults[target.id] && (
+                      <Tooltip
+                        direction="top"
+                        offset={[0, -8]}
+                        permanent
+                        className={`action-tooltip action-tooltip--${actionResults[target.id].status}`}
+                      >
+                        <span className="action-tooltip-label">{actionResults[target.id].label}</span>
+                        <span className="action-tooltip-message">{actionResults[target.id].message}</span>
+                      </Tooltip>
+                    )}
+                  </CircleMarker>
+                </Fragment>
+              );
+            })}
           </MapContainer>
           <div className="map-legend" aria-label="Risk legend">
             <h3>Risk Legend</h3>
             <ul>
-              {Object.entries(riskColors).map(([level, color]) => (
-                <li key={level}>
-                  <span className="legend-swatch" style={{ backgroundColor: color }} aria-hidden />
-                  {level}
+              {legendItems.map((item) => (
+                <li key={item.key}>
+                  <span className="legend-swatch" style={{ backgroundColor: item.color }} aria-hidden />
+                  {item.label}
                 </li>
               ))}
             </ul>
@@ -512,6 +866,69 @@ function App() {
             </div>
           </div>
         </main>
+        {selectedTarget && (
+          <div className="modal-overlay" role="presentation" onClick={() => setDetailsTargetId(null)}>
+            <div
+              className="modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={`target-modal-${selectedTarget.id}`}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="modal-header">
+                <div className="modal-title-group">
+                  <span
+                    className="risk-indicator"
+                    style={{ backgroundColor: riskColors[selectedTarget.riskLevel] }}
+                    aria-hidden
+                  />
+                  <div>
+                    <h2 id={`target-modal-${selectedTarget.id}`}>{selectedTarget.callSign}</h2>
+                    <p className="modal-subtitle">
+                      Risk {selectedTarget.riskLevel} · Score {selectedTarget.riskScore}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="modal-close"
+                  aria-label="Close details"
+                  onClick={() => setDetailsTargetId(null)}
+                >
+                  ×
+                </button>
+              </div>
+              <div className="modal-body">
+                <dl className="modal-meta">
+                  <div>
+                    <dt>Launch position</dt>
+                    <dd>{formatCoordinate(selectedTarget.startPosition)}</dd>
+                  </div>
+                  <div>
+                    <dt>Current position</dt>
+                    <dd>{formatCoordinate(selectedTarget.endPosition)}</dd>
+                  </div>
+                </dl>
+                <h3>Risk factor breakdown</h3>
+                <ul className="factor-breakdown">
+                  {Object.entries(riskWeights).map(([factor, weight]) => {
+                    const triggered = selectedTarget.riskFactors[factor];
+                    const points = triggered ? weight : 0;
+                    return (
+                      <li key={factor}>
+                        <span className="factor-label">{riskFactorDetails[factor]}</span>
+                        <span className="factor-result">
+                          {triggered ? 'Yes' : 'No'}
+                          <span className="factor-points">{` (+${points})`}</span>
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
