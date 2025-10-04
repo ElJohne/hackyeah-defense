@@ -343,8 +343,8 @@ body {
 }
 
 .action-button--deactivated {
-  background: #475569;
-  color: #e2e8f0;
+  background: #9ca3af;
+  color: #1f2937;
 }
 
 .action-button--deactivated:disabled {
