@@ -555,12 +555,14 @@ function App() {
   const [actionLog, setActionLog] = useState([]);
   const [riskFilters, setRiskFilters] = useState([]);
   const [showRadioStations, setShowRadioStations] = useState(true);
+  const [notifyingStations, setNotifyingStations] = useState(() => new Set());
   const listRefs = useRef({});
   const trajectoryRefs = useRef({});
   const startMarkerRefs = useRef({});
   const endMarkerRefs = useRef({});
   const droneIconCacheRef = useRef({});
   const mapRef = useRef(null);
+  const notificationTimers = useRef({});
   const polandCenter = [52.0976, 19.1451];
   const polandZoom = 6.5;
   const mapMinZoom = 5.5;
@@ -584,6 +586,21 @@ function App() {
             <circle cx="24" cy="24" r="6" fill="#1d4ed8" />
             <path d="M24 10v8M24 30v8M10 24h8M30 24h8" stroke="#1d4ed8" stroke-width="2.5" stroke-linecap="round" />
           </svg>
+        `,
+      }),
+    [],
+  );
+
+  const radioNotificationIcon = useMemo(
+    () =>
+      L.divIcon({
+        className: 'radio-notify-marker',
+        iconSize: [96, 96],
+        iconAnchor: [48, 48],
+        html: `
+          <span class="radio-notify__pulse"></span>
+          <span class="radio-notify__pulse radio-notify__pulse--delay"></span>
+          <span class="radio-notify__core"></span>
         `,
       }),
     [],
@@ -624,6 +641,38 @@ function App() {
       return riskLevels.filter((item) => nextSet.has(item));
     });
   }, []);
+
+  const handleNotifyStation = useCallback((stationId) => {
+    setNotifyingStations((prev) => {
+      const next = new Set(prev);
+      next.add(stationId);
+      return next;
+    });
+
+    if (notificationTimers.current[stationId]) {
+      clearTimeout(notificationTimers.current[stationId]);
+    }
+
+    notificationTimers.current[stationId] = setTimeout(() => {
+      setNotifyingStations((prev) => {
+        const next = new Set(prev);
+        next.delete(stationId);
+        return next;
+      });
+
+      delete notificationTimers.current[stationId];
+    }, 2400);
+  }, []);
+
+  useEffect(() => {
+    const timersRef = notificationTimers.current;
+
+    return () => {
+      Object.values(timersRef).forEach((timeoutId) => {
+        clearTimeout(timeoutId);
+      });
+    };
+  }, [notificationTimers]);
 
   const toggleRadioStations = useCallback(() => {
     setShowRadioStations((prev) => !prev);
@@ -1186,6 +1235,13 @@ function App() {
 
                 return (
                   <Fragment key={station.id}>
+                    {notifyingStations.has(station.id) && (
+                      <Marker
+                        position={station.position}
+                        icon={radioNotificationIcon}
+                        interactive={false}
+                      />
+                    )}
                     <Circle
                       center={station.position}
                       radius={radioCoverageRadiusMeters}
@@ -1197,11 +1253,42 @@ function App() {
                       }}
                     />
                     <Marker position={station.position} icon={radioStationIcon}>
-                      <Tooltip direction="top" offset={[0, -28]}>
+                      <Tooltip direction="top" offset={[0, -28]} interactive>
                         <div className="radio-tooltip">
                           <strong>{station.name}</strong>
                           <br />
                           Coverage radius: 30 km
+                          <div className="radio-tooltip__actions">
+                            <button
+                              type="button"
+                              className="radio-tooltip__notify-button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleNotifyStation(station.id);
+                              }}
+                              disabled={!isStationEngaged || notifyingStations.has(station.id)}
+                            >
+                              Notify
+                            </button>
+                            {!isStationEngaged && (
+                              <span className="radio-tooltip__status radio-tooltip__status--idle">
+                                No tracked drones inside coverage
+                              </span>
+                            )}
+                            {isStationEngaged && !notifyingStations.has(station.id) && (
+                              <span className="radio-tooltip__status radio-tooltip__status--armed">
+                                Drone detected in airspace
+                              </span>
+                            )}
+                            {notifyingStations.has(station.id) && (
+                              <span
+                                className="radio-tooltip__status radio-tooltip__status--sent"
+                                role="status"
+                              >
+                                Notification dispatched
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </Tooltip>
                     </Marker>
