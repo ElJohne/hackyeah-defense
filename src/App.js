@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   MapContainer,
   TileLayer,
@@ -49,6 +49,14 @@ const actionDefinitions = {
     errorOutcome: 'blocked',
     errorMessage: 'ADS-B conflict — manned aircraft in vicinity.',
     buttonClass: 'action-button action-button--red',
+  },
+  report: {
+    label: 'Report',
+    successOutcome: 'reported',
+    successMessage: 'After-action report submitted to command.',
+    errorOutcome: 'failed',
+    errorMessage: 'Report uplink unavailable — retry later.',
+    buttonClass: 'action-button action-button--green',
   },
 };
 
@@ -101,6 +109,7 @@ const rawTargets = [
       simDetach: 'allowed',
       cyberTakeover: 'failed',
       directionalJam: 'allowed',
+      report: 'reported',
     },
   },
   {
@@ -153,6 +162,7 @@ const rawTargets = [
       simDetach: 'no-effect',
       cyberTakeover: 'allowed',
       directionalJam: 'blocked',
+      report: 'reported',
     },
   },
   {
@@ -207,6 +217,7 @@ const rawTargets = [
       simDetach: 'allowed',
       cyberTakeover: 'allowed',
       directionalJam: 'allowed',
+      report: 'reported',
     },
   },
   {
@@ -255,6 +266,7 @@ const rawTargets = [
       simDetach: 'no-effect',
       cyberTakeover: 'failed',
       directionalJam: 'blocked',
+      report: 'reported',
     },
   },
   {
@@ -303,6 +315,7 @@ const rawTargets = [
       simDetach: 'no-effect',
       cyberTakeover: 'failed',
       directionalJam: 'blocked',
+      report: 'reported',
     },
   },
   {
@@ -351,6 +364,7 @@ const rawTargets = [
       simDetach: 'allowed',
       cyberTakeover: 'failed',
       directionalJam: 'allowed',
+      report: 'reported',
     },
   },
 ];
@@ -407,6 +421,7 @@ function App() {
   const [toast, setToast] = useState(null);
   const [actionResults, setActionResults] = useState({});
   const [mitigatedTargets, setMitigatedTargets] = useState({});
+  const [actionLog, setActionLog] = useState([]);
   const listRefs = useRef({});
   const trajectoryRefs = useRef({});
   const startMarkerRefs = useRef({});
@@ -488,6 +503,101 @@ function App() {
       color: mitigationColor,
     },
   ];
+
+  const auditSummary = useMemo(() => {
+    const engagedTargets = new Set();
+    const successfulTargets = new Set();
+    const reportedTargets = new Set();
+
+    actionLog.forEach((entry) => {
+      engagedTargets.add(entry.targetId);
+      if (entry.countsAsSuccess) {
+        successfulTargets.add(entry.targetId);
+      }
+      if (entry.reported) {
+        reportedTargets.add(entry.targetId);
+      }
+    });
+
+    const unsuccessfulTargets = new Set(
+      Array.from(engagedTargets).filter((targetId) => !successfulTargets.has(targetId)),
+    );
+
+    return {
+      totalTargets: targets.length,
+      engagedTargets: engagedTargets.size,
+      successfulTargets: successfulTargets.size,
+      unsuccessfulTargets: unsuccessfulTargets.size,
+      reportedTargets: reportedTargets.size,
+    };
+  }, [actionLog, targets]);
+
+  const handleDownloadLog = useCallback(() => {
+    const now = new Date();
+    const timestamp = now.toISOString();
+
+    const lines = [
+      'Drone Response Audit Log',
+      `Generated: ${timestamp}`,
+      '',
+      'Summary:',
+      `- Total targets identified: ${auditSummary.totalTargets}`,
+      `- Targets engaged: ${auditSummary.engagedTargets}`,
+      `- Targets neutralized successfully: ${auditSummary.successfulTargets}`,
+      `- Target engagements without success: ${auditSummary.unsuccessfulTargets}`,
+      `- Drones reported: ${auditSummary.reportedTargets}`,
+      '- Identified drones (risk level · score):',
+    ];
+
+    targets.forEach((target) => {
+      lines.push(`  • ${target.callSign}: ${target.riskLevel} · Score ${target.riskScore}`);
+    });
+
+    lines.push('', 'Identified Targets:');
+
+    targets.forEach((target) => {
+      lines.push(
+        `• Potential drone identified at coordinates ${formatCoordinate(
+          target.endPosition,
+        )} with identification ${target.callSign}.`,
+      );
+    });
+
+    lines.push('', 'Action Log:');
+
+    if (actionLog.length === 0) {
+      lines.push('No mitigation actions have been recorded during this session.');
+    } else {
+      actionLog.forEach((entry) => {
+        const formattedCoordinate = entry.coordinates
+          ? ` at coordinates ${formatCoordinate(entry.coordinates)}`
+          : '';
+        if (entry.actionKey === 'report' && entry.success) {
+          lines.push(
+            `[${entry.timestamp}] Operator filed a report on drone "${entry.callSign}"${formattedCoordinate}. ${entry.message}`,
+          );
+        } else if (entry.success) {
+          lines.push(
+            `[${entry.timestamp}] Operator acted on drone "${entry.callSign}" with action "${entry.actionLabel}" successfully${formattedCoordinate}. ${entry.message}`,
+          );
+        } else {
+          lines.push(
+            `[${entry.timestamp}] Operator acted on drone "${entry.callSign}" with action "${entry.actionLabel}" unsuccessfully${formattedCoordinate} because ${entry.message}`,
+          );
+        }
+      });
+    }
+
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `drone-audit-log-${timestamp.replace(/[:.]/g, '-')}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [actionLog, auditSummary, formatCoordinate, targets]);
 
   const selectedTarget = useMemo(
     () => targets.find((target) => target.id === detailsTargetId) || null,
@@ -605,6 +715,9 @@ function App() {
     const isSuccess = outcome === definition.successOutcome;
     const message = isSuccess ? definition.successMessage : definition.errorMessage;
     const status = isSuccess ? 'success' : 'error';
+    const countsAsSuccess = isSuccess && actionKey !== 'report';
+    const isReported = isSuccess && actionKey === 'report';
+    const timestamp = new Date();
 
     setActionResults((prev) => ({
       ...prev,
@@ -620,6 +733,22 @@ function App() {
       [target.id]: true,
     }));
 
+    setActionLog((prev) => [
+      ...prev,
+      {
+        timestamp: timestamp.toISOString(),
+        targetId: target.id,
+        callSign: target.callSign,
+        actionKey,
+        actionLabel: definition.label,
+        success: isSuccess,
+        countsAsSuccess,
+        reported: isReported,
+        message,
+        coordinates: target.endPosition,
+      },
+    ]);
+
     setToast({
       id: target.id,
       label: `${definition.label} · ${target.callSign}`,
@@ -633,6 +762,9 @@ function App() {
     <div className="app">
       <header className="app-header">
         <h1>Drone Risk Dashboard</h1>
+        <button type="button" className="download-button" onClick={handleDownloadLog}>
+          Download Audit Log
+        </button>
       </header>
       <div className="app-body">
         <aside className="sidebar" aria-label="Target list">
