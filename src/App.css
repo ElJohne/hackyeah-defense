@@ -484,28 +484,11 @@ body {
 }
 
 .radio-coverage {
-  pointer-events: auto;
-  cursor: pointer;
-  transition: stroke-opacity 180ms ease, fill-opacity 180ms ease, stroke-width 180ms ease;
+  pointer-events: none;
 }
 
 .radio-coverage--active {
   animation: radioCoveragePulse 2.6s ease-in-out infinite;
-}
-
-.radio-coverage--hovered {
-  animation: none;
-  stroke-opacity: 0.95 !important;
-  fill-opacity: 0.18 !important;
-  stroke-width: 2.2 !important;
-}
-
-.radio-coverage--open {
-  animation: none;
-  stroke-opacity: 1 !important;
-  fill-opacity: 0.24 !important;
-  stroke-width: 2.6 !important;
-  filter: drop-shadow(0 0 18px rgba(37, 99, 235, 0.3));
 }
 
 @keyframes radioCoveragePulse {
@@ -723,66 +706,9 @@ body {
   filter: drop-shadow(0 4px 10px rgba(37, 99, 235, 0.35));
 }
 
-.radio-tooltip-wrapper.leaflet-tooltip {
-  padding: 0;
-  background: rgba(15, 23, 42, 0.92);
-  color: #f8fafc;
-  border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  box-shadow: 0 18px 32px rgba(15, 23, 42, 0.45);
-  pointer-events: auto;
-}
-
 .radio-tooltip {
   font-size: 0.75rem;
   line-height: 1.25;
-  position: relative;
-  padding: 0.75rem 1.05rem 0.95rem 0.9rem;
-  max-width: 220px;
-}
-
-.radio-tooltip strong {
-  display: block;
-  font-size: 0.8rem;
-  margin-bottom: 0.15rem;
-}
-
-.radio-tooltip__coverage {
-  display: block;
-  font-size: 0.72rem;
-  color: rgba(226, 232, 240, 0.75);
-  margin-bottom: 0.65rem;
-}
-
-.radio-tooltip__close {
-  position: absolute;
-  top: 0.45rem;
-  right: 0.45rem;
-  appearance: none;
-  border: 0;
-  background: transparent;
-  color: #cbd5f5;
-  font-size: 0.85rem;
-  line-height: 1;
-  cursor: pointer;
-  border-radius: 999px;
-  padding: 0.15rem;
-  transition: background-color 150ms ease, color 150ms ease, transform 150ms ease;
-}
-
-.radio-tooltip__close:hover {
-  background: rgba(148, 163, 184, 0.18);
-  color: #ffffff;
-  transform: scale(1.05);
-}
-
-.radio-tooltip__close:active {
-  transform: scale(0.96);
-}
-
-.radio-tooltip__close:focus-visible {
-  outline: 2px solid #93c5fd;
-  outline-offset: 2px;
 }
 
 .radio-tooltip__actions {
