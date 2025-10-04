@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
   MapContainer,
   TileLayer,
@@ -403,9 +403,14 @@ const computeRisk = (riskFactors) => {
 
 function App() {
   const [detailsTargetId, setDetailsTargetId] = useState(null);
+  const [selectedTargetId, setSelectedTargetId] = useState(null);
   const [toast, setToast] = useState(null);
   const [actionResults, setActionResults] = useState({});
   const [mitigatedTargets, setMitigatedTargets] = useState({});
+  const listRefs = useRef({});
+  const trajectoryRefs = useRef({});
+  const startMarkerRefs = useRef({});
+  const endMarkerRefs = useRef({});
   const polandCenter = [52.0976, 19.1451];
   const polandZoom = 6.5;
   const mapMinZoom = 5.5;
@@ -458,12 +463,15 @@ function App() {
     fillOpacity: 1,
   };
 
-  const createEndMarkerOptions = (riskLevel) => ({
+  const createEndMarkerOptions = (riskLevel, isSelected) => ({
     radius: 7,
     weight: 2,
     color: '#ffffff',
     fillColor: riskColors[riskLevel],
     fillOpacity: 1,
+    className: isSelected
+      ? 'drone-marker drone-marker--selected'
+      : 'drone-marker',
   });
 
   const formatCoordinate = ([lat, lon]) => `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
@@ -486,12 +494,51 @@ function App() {
     [detailsTargetId, targets],
   );
 
+  useEffect(() => {
+    if (selectedTargetId == null) {
+      return;
+    }
+
+    const element = listRefs.current[selectedTargetId];
+    if (element) {
+      element.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+  }, [selectedTargetId]);
+
+  useEffect(() => {
+    if (selectedTargetId == null) {
+      return;
+    }
+
+    trajectoryRefs.current[selectedTargetId]?.bringToFront();
+    endMarkerRefs.current[selectedTargetId]?.bringToFront();
+    startMarkerRefs.current[selectedTargetId]?.bringToFront();
+  }, [selectedTargetId]);
+
+  const handleSelectTarget = (targetId) => {
+    setSelectedTargetId(targetId);
+  };
+
+  const handleCardKeyDown = (event, targetId) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      handleSelectTarget(targetId);
+    }
+  };
+
+  const handleDetailsOpen = (targetId) => {
+    setSelectedTargetId(targetId);
+    setDetailsTargetId(targetId);
+  };
+
   const handleAction = (target, actionKey) => {
     const definition = actionDefinitions[actionKey];
     const outcome = target.actionOutcomes?.[actionKey];
     if (!definition || !outcome) {
       return;
     }
+
+    setSelectedTargetId(target.id);
 
     const isSuccess = outcome === definition.successOutcome;
     const message = isSuccess ? definition.successMessage : definition.errorMessage;
@@ -529,27 +576,46 @@ function App() {
         <aside className="sidebar" aria-label="Target list">
           <h2>Targets</h2>
           <ul className="target-list">
-            {targets.map((target) => (
-              <li
-                key={target.id}
-                className={
-                  detailsTargetId === target.id ? 'target-card target-card--active' : 'target-card'
-                }
-              >
-                <span
-                  className="risk-indicator"
-                  style={{ backgroundColor: riskColors[target.riskLevel] }}
-                  aria-hidden
-                />
-                <div className="target-content">
+            {targets.map((target) => {
+              const isSelected = selectedTargetId === target.id;
+              const isDetailsOpen = detailsTargetId === target.id;
+
+              return (
+                <li
+                  key={target.id}
+                  ref={(node) => {
+                    if (node) {
+                      listRefs.current[target.id] = node;
+                    } else {
+                      delete listRefs.current[target.id];
+                    }
+                  }}
+                  className={`target-card${isSelected ? ' target-card--selected' : ''}${
+                    isDetailsOpen ? ' target-card--active' : ''
+                  }`}
+                  onClick={() => handleSelectTarget(target.id)}
+                  onKeyDown={(event) => handleCardKeyDown(event, target.id)}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={isSelected}
+                >
+                  <span
+                    className="risk-indicator"
+                    style={{ backgroundColor: riskColors[target.riskLevel] }}
+                    aria-hidden
+                  />
+                  <div className="target-content">
                   <div className="target-header">
                     <strong>{target.callSign}</strong>
                     <button
                       type="button"
                       className="details-button"
-                      onClick={() => setDetailsTargetId(target.id)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        handleDetailsOpen(target.id);
+                      }}
                       aria-haspopup="dialog"
-                      aria-expanded={detailsTargetId === target.id}
+                      aria-expanded={isDetailsOpen}
                     >
                       Details
                     </button>
@@ -601,7 +667,8 @@ function App() {
                   </div>
                 </div>
               </li>
-            ))}
+              );
+            })}
           </ul>
         </aside>
         <main className="map-wrapper" aria-label="Map display">
@@ -630,49 +697,93 @@ function App() {
               attribution="&copy; OpenStreetMap contributors"
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-            {targets.map((target) => (
-              <Fragment key={target.id}>
-                <Polyline
-                  positions={target.track}
-                  pathOptions={{
-                    ...trajectoryOptions,
-                    color: mitigatedTargets[target.id]
-                      ? mitigationColor
-                      : riskColors[target.riskLevel],
-                  }}
-                />
-                <CircleMarker center={target.startPosition} pathOptions={startMarkerOptions}>
-                  <Popup>
-                    <strong>{target.callSign}</strong>
-                    <br />
-                    Launch position: {formatCoordinate(target.startPosition)}
-                  </Popup>
-                </CircleMarker>
-                <CircleMarker
-                  center={target.endPosition}
-                  pathOptions={createEndMarkerOptions(target.riskLevel)}
-                >
-                  <Popup>
-                    <strong>{target.callSign}</strong>
-                    <br />
-                    Current position: {formatCoordinate(target.endPosition)}
-                    <br />
-                    Risk: {target.riskLevel} ({target.riskScore})
-                  </Popup>
-                  {actionResults[target.id] && (
-                    <Tooltip
-                      direction="top"
-                      offset={[0, -8]}
-                      permanent
-                      className={`action-tooltip action-tooltip--${actionResults[target.id].status}`}
-                    >
-                      <span className="action-tooltip-label">{actionResults[target.id].label}</span>
-                      <span className="action-tooltip-message">{actionResults[target.id].message}</span>
-                    </Tooltip>
-                  )}
-                </CircleMarker>
-              </Fragment>
-            ))}
+            {targets.map((target) => {
+              const isSelected = selectedTargetId === target.id;
+              const pathColor = mitigatedTargets[target.id]
+                ? mitigationColor
+                : riskColors[target.riskLevel];
+
+              return (
+                <Fragment key={target.id}>
+                  <Polyline
+                    ref={(instance) => {
+                      if (instance) {
+                        trajectoryRefs.current[target.id] = instance;
+                      } else {
+                        delete trajectoryRefs.current[target.id];
+                      }
+                    }}
+                    positions={target.track}
+                    pathOptions={{
+                      ...trajectoryOptions,
+                      color: pathColor,
+                      className: isSelected ? 'trajectory trajectory--selected' : 'trajectory',
+                    }}
+                    eventHandlers={{
+                      click: () => handleSelectTarget(target.id),
+                    }}
+                  />
+                  <CircleMarker
+                    ref={(instance) => {
+                      if (instance) {
+                        startMarkerRefs.current[target.id] = instance;
+                      } else {
+                        delete startMarkerRefs.current[target.id];
+                      }
+                    }}
+                    center={target.startPosition}
+                    pathOptions={{
+                      ...startMarkerOptions,
+                      className: isSelected
+                        ? 'drone-marker drone-marker--selected'
+                        : 'drone-marker',
+                    }}
+                    eventHandlers={{
+                      click: () => handleSelectTarget(target.id),
+                    }}
+                  >
+                    <Popup>
+                      <strong>{target.callSign}</strong>
+                      <br />
+                      Launch position: {formatCoordinate(target.startPosition)}
+                    </Popup>
+                  </CircleMarker>
+                  <CircleMarker
+                    ref={(instance) => {
+                      if (instance) {
+                        endMarkerRefs.current[target.id] = instance;
+                      } else {
+                        delete endMarkerRefs.current[target.id];
+                      }
+                    }}
+                    center={target.endPosition}
+                    pathOptions={createEndMarkerOptions(target.riskLevel, isSelected)}
+                    eventHandlers={{
+                      click: () => handleSelectTarget(target.id),
+                    }}
+                  >
+                    <Popup>
+                      <strong>{target.callSign}</strong>
+                      <br />
+                      Current position: {formatCoordinate(target.endPosition)}
+                      <br />
+                      Risk: {target.riskLevel} ({target.riskScore})
+                    </Popup>
+                    {actionResults[target.id] && (
+                      <Tooltip
+                        direction="top"
+                        offset={[0, -8]}
+                        permanent
+                        className={`action-tooltip action-tooltip--${actionResults[target.id].status}`}
+                      >
+                        <span className="action-tooltip-label">{actionResults[target.id].label}</span>
+                        <span className="action-tooltip-message">{actionResults[target.id].message}</span>
+                      </Tooltip>
+                    )}
+                  </CircleMarker>
+                </Fragment>
+              );
+            })}
           </MapContainer>
           <div className="map-legend" aria-label="Risk legend">
             <h3>Risk Legend</h3>
