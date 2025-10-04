@@ -119,6 +119,21 @@ const radioStations = [
 
 const toRadians = (value) => (value * Math.PI) / 180;
 const toDegrees = (value) => (value * 180) / Math.PI;
+const EARTH_RADIUS_METERS = 6371000;
+
+const computeDistanceMeters = ([lat1, lon1], [lat2, lon2]) => {
+  const φ1 = toRadians(lat1);
+  const φ2 = toRadians(lat2);
+  const Δφ = toRadians(lat2 - lat1);
+  const Δλ = toRadians(lon2 - lon1);
+
+  const a =
+    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return EARTH_RADIUS_METERS * c;
+};
 
 const computeHeading = (track) => {
   if (!track || track.length < 2) {
@@ -621,6 +636,30 @@ function App() {
         : targets.filter((target) => riskFilters.includes(target.riskLevel)),
     [riskFilters, targets],
   );
+
+  const { engagedStations, coveredTargets } = useMemo(() => {
+    const engaged = new Set();
+    const covered = new Set();
+
+    targets.forEach((target) => {
+      const isCovered = radioStations.some((station) => {
+        const distance = computeDistanceMeters(station.position, target.endPosition);
+
+        if (distance <= radioCoverageRadiusMeters) {
+          engaged.add(station.id);
+          return true;
+        }
+
+        return false;
+      });
+
+      if (isCovered) {
+        covered.add(target.id);
+      }
+    });
+
+    return { engagedStations: engaged, coveredTargets: covered };
+  }, [targets]);
 
   const getDroneIcon = useCallback((riskLevel, heading) => {
     const normalizedHeading = Math.round(heading);
@@ -1142,28 +1181,38 @@ function App() {
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
             {showRadioStations &&
-              radioStations.map((station) => (
-                <Fragment key={station.id}>
-                  <Circle
-                    center={station.position}
-                    radius={radioCoverageRadiusMeters}
-                    pathOptions={radioCoverageStyle}
-                  />
-                  <Marker position={station.position} icon={radioStationIcon}>
-                    <Tooltip direction="top" offset={[0, -28]}>
-                      <div className="radio-tooltip">
-                        <strong>{station.name}</strong>
-                        <br />
-                        Coverage radius: 30 km
-                      </div>
-                    </Tooltip>
-                  </Marker>
-                </Fragment>
-              ))}
+              radioStations.map((station) => {
+                const isStationEngaged = engagedStations.has(station.id);
+
+                return (
+                  <Fragment key={station.id}>
+                    <Circle
+                      center={station.position}
+                      radius={radioCoverageRadiusMeters}
+                      pathOptions={{
+                        ...radioCoverageStyle,
+                        className: isStationEngaged
+                          ? 'radio-coverage radio-coverage--active'
+                          : 'radio-coverage',
+                      }}
+                    />
+                    <Marker position={station.position} icon={radioStationIcon}>
+                      <Tooltip direction="top" offset={[0, -28]}>
+                        <div className="radio-tooltip">
+                          <strong>{station.name}</strong>
+                          <br />
+                          Coverage radius: 30 km
+                        </div>
+                      </Tooltip>
+                    </Marker>
+                  </Fragment>
+                );
+              })}
             {filteredTargets.map((target) => {
               const pathColor = mitigatedTargets[target.id]
                 ? mitigationColor
                 : riskColors[target.riskLevel];
+              const isTargetCovered = coveredTargets.has(target.id);
 
               return (
                 <Fragment key={target.id}>
@@ -1205,6 +1254,22 @@ function App() {
                       Launch position: {formatCoordinate(target.startPosition)}
                     </Popup>
                   </CircleMarker>
+                  {isTargetCovered && (
+                    <CircleMarker
+                      center={target.endPosition}
+                      radius={18}
+                      interactive={false}
+                      pane="shadowPane"
+                      pathOptions={{
+                        color: '#1d4ed8',
+                        weight: 2,
+                        fill: true,
+                        fillColor: '#3b82f6',
+                        fillOpacity: 0.18,
+                        className: 'drone-coverage',
+                      }}
+                    />
+                  )}
                   <Marker
                     ref={(instance) => {
                       if (instance) {
