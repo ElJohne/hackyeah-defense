@@ -413,6 +413,34 @@ body {
   stroke-width: 4px !important;
 }
 
+.drone-end-marker {
+  width: 35px;
+  height: 35px;
+  border-radius: 999px;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.drone-end-marker__image {
+  width: 70%;
+  height: auto;
+  transform-origin: 47% 55%;
+  transition: transform 0.3s ease, filter 0.3s ease;
+  display: block;
+}
+
+.drone-marker--selected .drone-end-marker {
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.55),
+    0 6px 16px rgba(14, 165, 233, 0.45);
+}
+
+.drone-marker--selected .drone-end-marker__image {
+  filter: drop-shadow(0 0 6px rgba(14, 165, 233, 0.65));
+}
+
 @keyframes markerPulse {
   0% {
     stroke-opacity: 1;
