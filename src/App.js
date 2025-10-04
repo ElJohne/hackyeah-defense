@@ -191,6 +191,8 @@ const actionDefinitions = {
   },
 };
 
+const actionFeedbackDuration = 3000;
+
 const rawTargets = [
   {
     id: 1,
@@ -513,6 +515,7 @@ const riskWeights = {
   missingRID: 15,
   repeatSighting: 5,
   nearMannedCorridor: 10,
+  noSpeedChangeWaterLand: 20,
 };
 
 const riskFactorDetails = {
@@ -528,6 +531,36 @@ const riskFactorDetails = {
   missingRID: 'Remote ID missing',
   repeatSighting: 'Repeat sighting recorded',
   nearMannedCorridor: 'Near manned air corridor',
+  noSpeedChangeWaterLand: 'Consistent speed transitioning water ↔ land',
+};
+
+const riskFactorDescriptions = {
+  imeiModem:
+    'The cellular signature aligns with an IoT modem, which is typical for remote-control telemetry rather than a consumer handset.',
+  dataOnly:
+    'The SIM communicates using data-only service, pointing to a command-and-control link without normal voice or SMS activity.',
+  highSpeed:
+    'Ground track shows sustained high velocity, increasing the likelihood of a powered unmanned aircraft.',
+  highHandover:
+    'The device is rapidly roaming between cells, matching an airborne platform traversing multiple sectors.',
+  verticalMovement:
+    'Cell measurements indicate notable altitude changes, suggesting significant climb or descent.',
+  inNoFlyZone:
+    'The trajectory intersects a restricted or prohibited airspace where drone operations are not authorised.',
+  uasFlag:
+    'Network metadata already tags this subscriber as an unmanned aerial system asset.',
+  loitering:
+    'Movement pattern reveals dwell or circular loitering behaviour, often tied to surveillance missions.',
+  highAltitude:
+    'Reported altitude exceeds the expected range for hobbyist drones, elevating risk to other airspace users.',
+  missingRID:
+    'No Remote ID broadcast is detected, violating identification requirements and obscuring accountability.',
+  repeatSighting:
+    'This device has been observed in prior incidents, indicating persistent or deliberate activity.',
+  nearMannedCorridor:
+    'Flight path is close to established manned-aviation corridors, heightening collision hazards.',
+  noSpeedChangeWaterLand:
+    'Speed remains constant while transitioning between water and land sectors, signalling autonomous guidance.',
 };
 
 const computeRisk = (riskFactors) => {
@@ -551,16 +584,20 @@ function App() {
   const [selectedTargetId, setSelectedTargetId] = useState(null);
   const [toast, setToast] = useState(null);
   const [actionResults, setActionResults] = useState({});
+  const [visibleActionTooltips, setVisibleActionTooltips] = useState({});
   const [mitigatedTargets, setMitigatedTargets] = useState({});
   const [actionLog, setActionLog] = useState([]);
   const [riskFilters, setRiskFilters] = useState([]);
   const [showRadioStations, setShowRadioStations] = useState(true);
   const [notifyingStations, setNotifyingStations] = useState(() => new Set());
   const [activeStationId, setActiveStationId] = useState(null);
+  const [usedActions, setUsedActions] = useState({});
+  const [targetOrder, setTargetOrder] = useState(() => rawTargets.map((target) => target.id));
   const listRefs = useRef({});
   const trajectoryRefs = useRef({});
   const startMarkerRefs = useRef({});
   const endMarkerRefs = useRef({});
+  const actionTooltipTimersRef = useRef({});
   const droneIconCacheRef = useRef({});
   const mapRef = useRef(null);
   const notificationTimers = useRef({});
@@ -608,17 +645,24 @@ function App() {
 
   const targets = useMemo(
     () =>
-      rawTargets.map((target, index) => ({
-        ...computeRisk(target.riskFactors),
-        callSign: `Drone-${String(index + 1).padStart(3, '0')}`,
-        id: target.id,
-        track: target.track,
-        startPosition: target.track[0],
-        endPosition: target.track[target.track.length - 1],
-        heading: computeHeading(target.track),
-        riskFactors: target.riskFactors,
-        actionOutcomes: target.actionOutcomes,
-      })),
+      rawTargets.map((target, index) => {
+        const riskFactors = {
+          ...target.riskFactors,
+          noSpeedChangeWaterLand: Math.random() < 0.5,
+        };
+
+        return {
+          ...computeRisk(riskFactors),
+          callSign: `Drone-${String(index + 1).padStart(3, '0')}`,
+          id: target.id,
+          track: target.track,
+          startPosition: target.track[0],
+          endPosition: target.track[target.track.length - 1],
+          heading: computeHeading(target.track),
+          riskFactors,
+          actionOutcomes: target.actionOutcomes,
+        };
+      }),
     [],
   );
 
@@ -683,13 +727,17 @@ function App() {
       setActiveStationId(null);
     }
   }, [showRadioStations]);
+  const orderedTargets = useMemo(() => {
+    const targetMap = new Map(targets.map((target) => [target.id, target]));
+    return targetOrder.map((id) => targetMap.get(id)).filter(Boolean);
+  }, [targetOrder, targets]);
 
   const filteredTargets = useMemo(
     () =>
       riskFilters.length === 0
-        ? targets
-        : targets.filter((target) => riskFilters.includes(target.riskLevel)),
-    [riskFilters, targets],
+        ? orderedTargets
+        : orderedTargets.filter((target) => riskFilters.includes(target.riskLevel)),
+    [orderedTargets, riskFilters],
   );
 
   const engagedStations = useMemo(() => {
@@ -723,6 +771,7 @@ function App() {
 
     return radioStations.find((station) => station.id === activeStationId) ?? null;
   }, [activeStationId]);
+  const totalActionCount = useMemo(() => Object.keys(actionDefinitions).length, []);
 
   const getDroneIcon = useCallback((riskLevel, heading) => {
     const normalizedHeading = Math.round(heading);
@@ -757,9 +806,16 @@ function App() {
       return undefined;
     }
 
-    const timer = setTimeout(() => setToast(null), 3000);
+    const timer = setTimeout(() => setToast(null), actionFeedbackDuration);
     return () => clearTimeout(timer);
   }, [toast]);
+
+  useEffect(
+    () => () => {
+      Object.values(actionTooltipTimersRef.current).forEach((timer) => clearTimeout(timer));
+    },
+    [],
+  );
 
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -1021,7 +1077,10 @@ function App() {
   const handleAction = (target, actionKey) => {
     const definition = actionDefinitions[actionKey];
     const outcome = target.actionOutcomes?.[actionKey];
-    if (!definition || !outcome) {
+    const actionsUsedByTarget = usedActions[target.id] ?? [];
+    const isActionAlreadyUsed = actionsUsedByTarget.includes(actionKey);
+
+    if (!definition || !outcome || isActionAlreadyUsed) {
       return;
     }
 
@@ -1034,14 +1093,39 @@ function App() {
     const isReported = isSuccess && actionKey === 'report';
     const timestamp = new Date();
 
+    const actionTimestamp = Date.now();
+
     setActionResults((prev) => ({
       ...prev,
       [target.id]: {
         label: definition.label,
         message,
         status,
+        timestamp: actionTimestamp,
       },
     }));
+
+    setVisibleActionTooltips((prev) => ({
+      ...prev,
+      [target.id]: true,
+    }));
+
+    if (actionTooltipTimersRef.current[target.id]) {
+      clearTimeout(actionTooltipTimersRef.current[target.id]);
+    }
+
+    actionTooltipTimersRef.current[target.id] = setTimeout(() => {
+      setVisibleActionTooltips((prev) => {
+        if (!prev[target.id]) {
+          return prev;
+        }
+
+        const { [target.id]: _removed, ...rest } = prev;
+        return rest;
+      });
+
+      delete actionTooltipTimersRef.current[target.id];
+    }, actionFeedbackDuration);
 
     setMitigatedTargets((prev) => ({
       ...prev,
@@ -1069,8 +1153,26 @@ function App() {
       label: `${definition.label} · ${target.callSign}`,
       message,
       status,
-      timestamp: Date.now(),
+      timestamp: actionTimestamp,
     });
+
+    const nextActionsForTarget = [...actionsUsedByTarget, actionKey];
+    setUsedActions((prev) => ({
+      ...prev,
+      [target.id]: nextActionsForTarget,
+    }));
+
+    if (nextActionsForTarget.length >= totalActionCount) {
+      setTargetOrder((previousOrder) => {
+        if (!previousOrder.includes(target.id)) {
+          return previousOrder;
+        }
+
+        const nextOrder = previousOrder.filter((id) => id !== target.id);
+        nextOrder.push(target.id);
+        return nextOrder;
+      });
+    }
   };
 
   return (
@@ -1183,14 +1285,20 @@ function App() {
                         <div className="action-buttons" role="group" aria-label="Mitigation actions">
                           {Object.entries(actionDefinitions).map(([key, definition]) => {
                             const outcome = target.actionOutcomes?.[key];
-                            const isDisabled = !outcome;
+                            const actionsUsedForTarget = usedActions[target.id] ?? [];
+                            const isActionUsed = actionsUsedForTarget.includes(key);
+                            const allActionsUsed = actionsUsedForTarget.length >= totalActionCount;
+                            const shouldDisable = !outcome || isActionUsed || allActionsUsed;
+                            const buttonClassName = `${definition.buttonClass}${
+                              isActionUsed || allActionsUsed ? ' action-button--deactivated' : ''
+                            }`;
                             return (
                               <button
                                 key={key}
                                 type="button"
-                                className={definition.buttonClass}
+                                className={buttonClassName}
                                 onClick={() => handleAction(target, key)}
-                                disabled={isDisabled}
+                                disabled={shouldDisable}
                               >
                                 {definition.label}
                               </button>
@@ -1407,7 +1515,7 @@ function App() {
                       <br />
                       Risk: {target.riskLevel} ({target.riskScore})
                     </Popup>
-                    {actionResults[target.id] && (
+                    {actionResults[target.id] && visibleActionTooltips[target.id] && (
                       <Tooltip
                         direction="top"
                         offset={[0, -26]}
@@ -1556,7 +1664,19 @@ function App() {
                     const points = triggered ? weight : 0;
                     return (
                       <li key={factor}>
-                        <span className="factor-label">{riskFactorDetails[factor]}</span>
+                        <span className="factor-label">
+                          <span
+                            className="factor-help"
+                            tabIndex={0}
+                            aria-label={riskFactorDescriptions[factor]}
+                          >
+                            <span aria-hidden>?</span>
+                            <span className="factor-help__tooltip" role="tooltip">
+                              {riskFactorDescriptions[factor]}
+                            </span>
+                          </span>
+                          <span className="factor-label__text">{riskFactorDetails[factor]}</span>
+                        </span>
                         <span className="factor-result">
                           {triggered ? 'Yes' : 'No'}
                           <span className="factor-points">{` (+${points})`}</span>
