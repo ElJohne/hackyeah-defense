@@ -342,6 +342,15 @@ body {
   box-shadow: none;
 }
 
+.action-button--deactivated {
+  background: #475569;
+  color: #e2e8f0;
+}
+
+.action-button--deactivated:disabled {
+  opacity: 1;
+}
+
 .action-button--blue {
   background: #1d4ed8;
 }
