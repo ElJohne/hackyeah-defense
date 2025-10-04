@@ -587,7 +587,7 @@ function App() {
       element.classList.add('drone-marker');
       element.classList.toggle('drone-marker--selected', isSelected);
 
-      if (isSelected) {
+      if (isSelected && typeof marker.bringToFront === 'function') {
         marker.bringToFront();
       }
     });
@@ -606,8 +606,12 @@ function App() {
       element.classList.add('drone-marker');
       element.classList.toggle('drone-marker--selected', isSelected);
 
-      if (isSelected) {
-        marker.bringToFront();
+      if (typeof marker.bringToFront === 'function') {
+        if (isSelected) {
+          marker.bringToFront();
+        }
+      } else if (typeof marker.setZIndexOffset === 'function') {
+        marker.setZIndexOffset(isSelected ? 1000 : 0);
       }
     });
   }, [selectedTargetId]);
