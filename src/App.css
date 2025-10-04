@@ -292,6 +292,16 @@ body {
   transform: translateY(-1px);
 }
 
+.action-button--green {
+  background: #16a34a;
+}
+
+.action-button--green:hover:not(:disabled),
+.action-button--green:focus-visible:not(:disabled) {
+  background: #15803d;
+  transform: translateY(-1px);
+}
+
 .action-status {
   display: grid;
   gap: 0.35rem;
