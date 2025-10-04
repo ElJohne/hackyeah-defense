@@ -1,4 +1,4 @@
-import { Fragment } from 'react';
+import { Fragment, useState } from 'react';
 import { MapContainer, TileLayer, Popup, Polyline, CircleMarker } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import './App.css';
@@ -178,6 +178,21 @@ const riskWeights = {
   nearMannedCorridor: 10,
 };
 
+const riskFactorDetails = {
+  imeiModem: 'IMEI indicates IoT module',
+  dataOnly: 'Telemetry-only traffic',
+  highSpeed: 'High speed detected',
+  highHandover: 'Frequent cell handovers',
+  verticalMovement: 'Significant vertical movement',
+  inNoFlyZone: 'No-Fly-Zone violation',
+  uasFlag: 'UAS flag present',
+  loitering: 'Loitering behaviour detected',
+  highAltitude: 'High altitude flight',
+  missingRID: 'Remote ID missing',
+  repeatSighting: 'Repeat sighting recorded',
+  nearMannedCorridor: 'Near manned air corridor',
+};
+
 const computeRisk = (riskFactors) => {
   const riskScore = Object.entries(riskWeights).reduce(
     (score, [factor, weight]) => (riskFactors[factor] ? score + weight : score),
@@ -195,6 +210,7 @@ const computeRisk = (riskFactors) => {
 };
 
 function App() {
+  const [selectedTargetId, setSelectedTargetId] = useState(null);
   const polandCenter = [52.0976, 19.1451];
   const polandZoom = 6;
   const polandBounds = [
@@ -209,6 +225,7 @@ function App() {
     track: target.track,
     startPosition: target.track[0],
     endPosition: target.track[target.track.length - 1],
+    riskFactors: target.riskFactors,
   }));
 
   const startMarkerOptions = {
@@ -245,8 +262,22 @@ function App() {
                   style={{ backgroundColor: riskColors[target.riskLevel] }}
                   aria-hidden
                 />
-                <div>
-                  <strong>{target.callSign}</strong>
+                <div className="target-content">
+                  <div className="target-header">
+                    <strong>{target.callSign}</strong>
+                    <button
+                      type="button"
+                      className="details-button"
+                      onClick={() =>
+                        setSelectedTargetId((current) =>
+                          current === target.id ? null : target.id,
+                        )
+                      }
+                      aria-expanded={selectedTargetId === target.id}
+                    >
+                      Details
+                    </button>
+                  </div>
                   <dl className="target-meta">
                     <div>
                       <dt>Risk</dt>
@@ -263,6 +294,23 @@ function App() {
                       <dd>{formatCoordinate(target.endPosition)}</dd>
                     </div>
                   </dl>
+                  {selectedTargetId === target.id && (
+                    <ul className="factor-breakdown">
+                      {Object.entries(riskWeights).map(([factor, weight]) => {
+                        const triggered = target.riskFactors[factor];
+                        const points = triggered ? weight : 0;
+                        return (
+                          <li key={factor}>
+                            <span className="factor-label">{riskFactorDetails[factor]}</span>
+                            <span className="factor-result">
+                              {triggered ? 'Yes' : 'No'}
+                              <span className="factor-points">{` (+${points})`}</span>
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
                 </div>
               </li>
             ))}
