@@ -1,5 +1,12 @@
-import { Fragment, useState } from 'react';
-import { MapContainer, TileLayer, Popup, Polyline, CircleMarker } from 'react-leaflet';
+import { Fragment, useEffect, useState } from 'react';
+import {
+  MapContainer,
+  TileLayer,
+  Popup,
+  Polyline,
+  CircleMarker,
+  Tooltip,
+} from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import './App.css';
 
@@ -14,6 +21,35 @@ const trajectoryOptions = {
   opacity: 0.85,
   dashArray: '6 8',
   lineCap: 'round',
+};
+
+const mitigationColor = '#2563eb';
+
+const actionDefinitions = {
+  simDetach: {
+    label: 'SIM Detach',
+    successOutcome: 'allowed',
+    successMessage: 'Cellular C2 suspected; session detached.',
+    errorOutcome: 'no-effect',
+    errorMessage: 'No cellular control detected (likely RF/LOS).',
+    buttonClass: 'action-button action-button--blue',
+  },
+  cyberTakeover: {
+    label: 'Cyber Takeover',
+    successOutcome: 'allowed',
+    successMessage: 'Compatible C2 link; sterile LZ available.',
+    errorOutcome: 'failed',
+    errorMessage: 'No compatible C2 link discovered (unknown/encrypted).',
+    buttonClass: 'action-button action-button--blue',
+  },
+  directionalJam: {
+    label: 'Directional Jam',
+    successOutcome: 'allowed',
+    successMessage: 'Interlocks passed (ADS-B/GNSS corridor).',
+    errorOutcome: 'blocked',
+    errorMessage: 'ADS-B conflict — manned aircraft in vicinity.',
+    buttonClass: 'action-button action-button--red',
+  },
 };
 
 const rawTargets = [
@@ -61,6 +97,11 @@ const rawTargets = [
       repeatSighting: true,
       nearMannedCorridor: true,
     },
+    actionOutcomes: {
+      simDetach: 'allowed',
+      cyberTakeover: 'failed',
+      directionalJam: 'allowed',
+    },
   },
   {
     id: 2,
@@ -107,6 +148,11 @@ const rawTargets = [
       missingRID: true,
       repeatSighting: false,
       nearMannedCorridor: true,
+    },
+    actionOutcomes: {
+      simDetach: 'no-effect',
+      cyberTakeover: 'allowed',
+      directionalJam: 'blocked',
     },
   },
   {
@@ -157,6 +203,11 @@ const rawTargets = [
       repeatSighting: true,
       nearMannedCorridor: false,
     },
+    actionOutcomes: {
+      simDetach: 'allowed',
+      cyberTakeover: 'allowed',
+      directionalJam: 'allowed',
+    },
   },
   {
     id: 4,
@@ -199,6 +250,11 @@ const rawTargets = [
       missingRID: false,
       repeatSighting: true,
       nearMannedCorridor: false,
+    },
+    actionOutcomes: {
+      simDetach: 'no-effect',
+      cyberTakeover: 'failed',
+      directionalJam: 'blocked',
     },
   },
   {
@@ -243,6 +299,11 @@ const rawTargets = [
       repeatSighting: false,
       nearMannedCorridor: false,
     },
+    actionOutcomes: {
+      simDetach: 'no-effect',
+      cyberTakeover: 'failed',
+      directionalJam: 'blocked',
+    },
   },
   {
     id: 6,
@@ -285,6 +346,11 @@ const rawTargets = [
       missingRID: true,
       repeatSighting: true,
       nearMannedCorridor: false,
+    },
+    actionOutcomes: {
+      simDetach: 'allowed',
+      cyberTakeover: 'failed',
+      directionalJam: 'allowed',
     },
   },
 ];
@@ -337,6 +403,9 @@ const computeRisk = (riskFactors) => {
 
 function App() {
   const [selectedTargetId, setSelectedTargetId] = useState(null);
+  const [toast, setToast] = useState(null);
+  const [actionResults, setActionResults] = useState({});
+  const [mitigatedTargets, setMitigatedTargets] = useState({});
   const polandCenter = [52.0976, 19.1451];
   const polandZoom = 6.5;
   const mapMinZoom = 5.5;
@@ -354,7 +423,17 @@ function App() {
     startPosition: target.track[0],
     endPosition: target.track[target.track.length - 1],
     riskFactors: target.riskFactors,
+    actionOutcomes: target.actionOutcomes,
   }));
+
+  useEffect(() => {
+    if (!toast) {
+      return undefined;
+    }
+
+    const timer = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   const startMarkerOptions = {
     radius: 6,
@@ -373,6 +452,53 @@ function App() {
   });
 
   const formatCoordinate = ([lat, lon]) => `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+
+  const legendItems = [
+    ...Object.entries(riskColors).map(([level, color]) => ({
+      key: level,
+      label: `${level} risk`,
+      color,
+    })),
+    {
+      key: 'Mitigated',
+      label: 'Mitigated trajectory',
+      color: mitigationColor,
+    },
+  ];
+
+  const handleAction = (target, actionKey) => {
+    const definition = actionDefinitions[actionKey];
+    const outcome = target.actionOutcomes?.[actionKey];
+    if (!definition || !outcome) {
+      return;
+    }
+
+    const isSuccess = outcome === definition.successOutcome;
+    const message = isSuccess ? definition.successMessage : definition.errorMessage;
+    const status = isSuccess ? 'success' : 'error';
+
+    setActionResults((prev) => ({
+      ...prev,
+      [target.id]: {
+        label: definition.label,
+        message,
+        status,
+      },
+    }));
+
+    setMitigatedTargets((prev) => ({
+      ...prev,
+      [target.id]: true,
+    }));
+
+    setToast({
+      id: target.id,
+      label: `${definition.label} · ${target.callSign}`,
+      message,
+      status,
+      timestamp: Date.now(),
+    });
+  };
 
   return (
     <div className="app">
@@ -439,12 +565,54 @@ function App() {
                       })}
                     </ul>
                   )}
+                  {selectedTargetId === target.id && (
+                    <div className="action-panel">
+                      <h4>Response actions</h4>
+                      <div className="action-buttons" role="group" aria-label="Mitigation actions">
+                        {Object.entries(actionDefinitions).map(([key, definition]) => {
+                          const outcome = target.actionOutcomes?.[key];
+                          const isDisabled = !outcome;
+                          return (
+                            <button
+                              key={key}
+                              type="button"
+                              className={definition.buttonClass}
+                              onClick={() => handleAction(target, key)}
+                              disabled={isDisabled}
+                            >
+                              {definition.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {actionResults[target.id] && (
+                        <div
+                          className={`action-status action-status--${actionResults[target.id].status}`}
+                          role="status"
+                        >
+                          <span className="action-status-label">{actionResults[target.id].label}</span>
+                          <span className="action-status-message">{actionResults[target.id].message}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </li>
             ))}
           </ul>
         </aside>
         <main className="map-wrapper" aria-label="Map display">
+          {toast && (
+            <div
+              key={toast.timestamp}
+              className={`action-toast action-toast--${toast.status}`}
+              role="status"
+              aria-live="polite"
+            >
+              <strong>{toast.label}</strong>
+              <span>{toast.message}</span>
+            </div>
+          )}
           <MapContainer
             center={polandCenter}
             zoom={polandZoom}
@@ -465,7 +633,9 @@ function App() {
                   positions={target.track}
                   pathOptions={{
                     ...trajectoryOptions,
-                    color: riskColors[target.riskLevel],
+                    color: mitigatedTargets[target.id]
+                      ? mitigationColor
+                      : riskColors[target.riskLevel],
                   }}
                 />
                 <CircleMarker center={target.startPosition} pathOptions={startMarkerOptions}>
@@ -486,6 +656,17 @@ function App() {
                     <br />
                     Risk: {target.riskLevel} ({target.riskScore})
                   </Popup>
+                  {actionResults[target.id] && (
+                    <Tooltip
+                      direction="top"
+                      offset={[0, -8]}
+                      permanent
+                      className={`action-tooltip action-tooltip--${actionResults[target.id].status}`}
+                    >
+                      <span className="action-tooltip-label">{actionResults[target.id].label}</span>
+                      <span className="action-tooltip-message">{actionResults[target.id].message}</span>
+                    </Tooltip>
+                  )}
                 </CircleMarker>
               </Fragment>
             ))}
@@ -493,10 +674,10 @@ function App() {
           <div className="map-legend" aria-label="Risk legend">
             <h3>Risk Legend</h3>
             <ul>
-              {Object.entries(riskColors).map(([level, color]) => (
-                <li key={level}>
-                  <span className="legend-swatch" style={{ backgroundColor: color }} aria-hidden />
-                  {level}
+              {legendItems.map((item) => (
+                <li key={item.key}>
+                  <span className="legend-swatch" style={{ backgroundColor: item.color }} aria-hidden />
+                  {item.label}
                 </li>
               ))}
             </ul>
