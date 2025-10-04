@@ -539,6 +539,7 @@ function App() {
   const [mitigatedTargets, setMitigatedTargets] = useState({});
   const [actionLog, setActionLog] = useState([]);
   const [riskFilters, setRiskFilters] = useState([]);
+  const [showRadioStations, setShowRadioStations] = useState(true);
   const listRefs = useRef({});
   const trajectoryRefs = useRef({});
   const startMarkerRefs = useRef({});
@@ -607,6 +608,10 @@ function App() {
       const nextSet = new Set(nextFilters);
       return riskLevels.filter((item) => nextSet.has(item));
     });
+  }, []);
+
+  const toggleRadioStations = useCallback(() => {
+    setShowRadioStations((prev) => !prev);
   }, []);
 
   const filteredTargets = useMemo(
@@ -971,6 +976,16 @@ function App() {
       <header className="app-header">
         <h1>Drone Risk Dashboard</h1>
         <div className="app-header-actions">
+          <button
+            type="button"
+            className={`layer-toggle${showRadioStations ? ' layer-toggle--active' : ''}`}
+            onClick={toggleRadioStations}
+            aria-pressed={showRadioStations}
+            aria-label={showRadioStations ? 'Hide mobile intercept nodes' : 'Show mobile intercept nodes'}
+            title={showRadioStations ? 'Hide mobile intercept nodes' : 'Show mobile intercept nodes'}
+          >
+            MIN
+          </button>
           <nav className="risk-filter" aria-label="Filter drones by risk level">
             {riskLevels.map((level) => {
               const isActive = riskFilters.includes(level);
@@ -1126,24 +1141,25 @@ function App() {
               attribution="&copy; OpenStreetMap contributors"
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-            {radioStations.map((station) => (
-              <Fragment key={station.id}>
-                <Circle
-                  center={station.position}
-                  radius={radioCoverageRadiusMeters}
-                  pathOptions={radioCoverageStyle}
-                />
-                <Marker position={station.position} icon={radioStationIcon}>
-                  <Tooltip direction="top" offset={[0, -28]}>
-                    <div className="radio-tooltip">
-                      <strong>{station.name}</strong>
-                      <br />
-                      Coverage radius: 100 km
-                    </div>
-                  </Tooltip>
-                </Marker>
-              </Fragment>
-            ))}
+            {showRadioStations &&
+              radioStations.map((station) => (
+                <Fragment key={station.id}>
+                  <Circle
+                    center={station.position}
+                    radius={radioCoverageRadiusMeters}
+                    pathOptions={radioCoverageStyle}
+                  />
+                  <Marker position={station.position} icon={radioStationIcon}>
+                    <Tooltip direction="top" offset={[0, -28]}>
+                      <div className="radio-tooltip">
+                        <strong>{station.name}</strong>
+                        <br />
+                        Coverage radius: 100 km
+                      </div>
+                    </Tooltip>
+                  </Marker>
+                </Fragment>
+              ))}
             {filteredTargets.map((target) => {
               const pathColor = mitigatedTargets[target.id]
                 ? mitigationColor
