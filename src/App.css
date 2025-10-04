@@ -27,11 +27,71 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 1.25rem;
+  flex-wrap: wrap;
 }
 
 .app-header h1 {
   margin: 0;
   font-size: 1.5rem;
+}
+
+.app-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.risk-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 999px;
+  background-color: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.risk-filter__button {
+  --risk-color: #e2e8f0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: transparent;
+  color: #f8fafc;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease,
+    color 0.2s ease;
+}
+
+.risk-filter__button:hover {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+.risk-filter__button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.45);
+}
+
+.risk-filter__button--active {
+  border-color: var(--risk-color);
+  background-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 0 0 1px var(--risk-color) inset;
+}
+
+.risk-filter__swatch {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+  background-color: var(--risk-color);
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.45);
 }
 
 .download-button {
@@ -87,6 +147,16 @@ body {
   margin: 1.5rem 0 0;
   display: grid;
   gap: 1rem;
+}
+
+.target-empty {
+  padding: 1.5rem 1.25rem;
+  border: 1px dashed rgba(148, 163, 184, 0.6);
+  border-radius: 0.75rem;
+  color: #64748b;
+  background-color: #f8fafc;
+  text-align: center;
+  font-weight: 500;
 }
 
 .target-card {
