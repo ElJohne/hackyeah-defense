@@ -41,7 +41,15 @@ body {
   border-right: 1px solid #e5e7eb;
 }
 
+.map-wrapper {
+  flex: 1;
+  display: flex;
+  background-color: #dfe7ef;
+}
+
 .map-container {
   flex: 1;
-  background-color: #dfe7ef;
+  width: 100%;
+  height: 100%;
+  min-height: 500px;
 }
