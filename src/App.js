@@ -18,6 +18,7 @@ const riskColors = {
   Medium: '#f08c00',
   High: '#c92a2a',
 };
+const riskLevels = Object.keys(riskColors);
 
 const trajectoryOptions = {
   weight: 4,
@@ -449,6 +450,7 @@ function App() {
   const [actionResults, setActionResults] = useState({});
   const [mitigatedTargets, setMitigatedTargets] = useState({});
   const [actionLog, setActionLog] = useState([]);
+  const [riskFilters, setRiskFilters] = useState([]);
   const listRefs = useRef({});
   const trajectoryRefs = useRef({});
   const startMarkerRefs = useRef({});
@@ -478,6 +480,34 @@ function App() {
         actionOutcomes: target.actionOutcomes,
       })),
     [],
+  );
+
+  const toggleRiskFilter = useCallback((level) => {
+    setRiskFilters((prev) => {
+      const isActive = prev.includes(level);
+      let nextFilters;
+
+      if (isActive) {
+        nextFilters = prev.filter((item) => item !== level);
+      } else {
+        nextFilters = [...prev, level];
+      }
+
+      if (!isActive && nextFilters.length === riskLevels.length) {
+        return [];
+      }
+
+      const nextSet = new Set(nextFilters);
+      return riskLevels.filter((item) => nextSet.has(item));
+    });
+  }, []);
+
+  const filteredTargets = useMemo(
+    () =>
+      riskFilters.length === 0
+        ? targets
+        : targets.filter((target) => riskFilters.includes(target.riskLevel)),
+    [riskFilters, targets],
   );
 
   const getDroneIcon = useCallback((riskLevel, heading) => {
@@ -656,6 +686,22 @@ function App() {
   );
 
   useEffect(() => {
+    if (
+      selectedTargetId != null &&
+      !filteredTargets.some((target) => target.id === selectedTargetId)
+    ) {
+      setSelectedTargetId(null);
+    }
+
+    if (
+      detailsTargetId != null &&
+      !filteredTargets.some((target) => target.id === detailsTargetId)
+    ) {
+      setDetailsTargetId(null);
+    }
+  }, [detailsTargetId, filteredTargets, selectedTargetId]);
+
+  useEffect(() => {
     if (selectedTargetId == null) {
       return;
     }
@@ -817,107 +863,131 @@ function App() {
     <div className="app">
       <header className="app-header">
         <h1>Drone Risk Dashboard</h1>
-        <button type="button" className="download-button" onClick={handleDownloadLog}>
-          Download Audit Log
-        </button>
+        <div className="app-header-actions">
+          <nav className="risk-filter" aria-label="Filter drones by risk level">
+            {riskLevels.map((level) => {
+              const isActive = riskFilters.includes(level);
+              return (
+                <button
+                  key={level}
+                  type="button"
+                  className={`risk-filter__button${isActive ? ' risk-filter__button--active' : ''}`}
+                  style={{ '--risk-color': riskColors[level] }}
+                  aria-pressed={isActive}
+                  onClick={() => toggleRiskFilter(level)}
+                >
+                  <span className="risk-filter__swatch" aria-hidden />
+                  <span className="risk-filter__label">{level}</span>
+                </button>
+              );
+              })}
+          </nav>
+          <button type="button" className="download-button" onClick={handleDownloadLog}>
+            Download Audit Log
+          </button>
+        </div>
       </header>
       <div className="app-body">
         <aside className="sidebar" aria-label="Target list">
           <h2>Targets</h2>
           <ul className="target-list">
-            {targets.map((target) => {
-              const isSelected = selectedTargetId === target.id;
-              const isDetailsOpen = detailsTargetId === target.id;
+            {filteredTargets.length === 0 ? (
+              <li className="target-empty">No drones match the selected risk levels.</li>
+            ) : (
+              filteredTargets.map((target) => {
+                const isSelected = selectedTargetId === target.id;
+                const isDetailsOpen = detailsTargetId === target.id;
 
-              return (
-                <li
-                  key={target.id}
-                  ref={(node) => {
-                    if (node) {
-                      listRefs.current[target.id] = node;
-                    } else {
-                      delete listRefs.current[target.id];
-                    }
-                  }}
-                  className={`target-card${isSelected ? ' target-card--selected' : ''}${
-                    isDetailsOpen ? ' target-card--active' : ''
-                  }`}
-                  onClick={() => handleSelectTarget(target.id)}
-                  onKeyDown={(event) => handleCardKeyDown(event, target.id)}
-                  role="button"
-                  tabIndex={0}
-                  aria-pressed={isSelected}
-                >
-                  <span
-                    className="risk-indicator"
-                    style={{ backgroundColor: riskColors[target.riskLevel] }}
-                    aria-hidden
-                  />
-                  <div className="target-content">
-                  <div className="target-header">
-                    <strong>{target.callSign}</strong>
-                    <button
-                      type="button"
-                      className="details-button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        handleDetailsOpen(target.id);
-                      }}
-                      aria-haspopup="dialog"
-                      aria-expanded={isDetailsOpen}
-                    >
-                      Details
-                    </button>
-                  </div>
-                  <dl className="target-meta">
-                    <div>
-                      <dt>Risk</dt>
-                      <dd>
-                        {target.riskLevel} · Score {target.riskScore}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>Start</dt>
-                      <dd>{formatCoordinate(target.startPosition)}</dd>
-                    </div>
-                    <div>
-                      <dt>Last seen</dt>
-                      <dd>{formatCoordinate(target.endPosition)}</dd>
-                    </div>
-                  </dl>
-                  <div className="action-panel action-panel--inline">
-                    <h4>Response actions</h4>
-                    <div className="action-buttons" role="group" aria-label="Mitigation actions">
-                      {Object.entries(actionDefinitions).map(([key, definition]) => {
-                        const outcome = target.actionOutcomes?.[key];
-                        const isDisabled = !outcome;
-                        return (
-                          <button
-                            key={key}
-                            type="button"
-                            className={definition.buttonClass}
-                            onClick={() => handleAction(target, key)}
-                            disabled={isDisabled}
-                          >
-                            {definition.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {actionResults[target.id] && (
-                      <div
-                        className={`action-status action-status--${actionResults[target.id].status}`}
-                        role="status"
-                      >
-                        <span className="action-status-label">{actionResults[target.id].label}</span>
-                        <span className="action-status-message">{actionResults[target.id].message}</span>
+                return (
+                  <li
+                    key={target.id}
+                    ref={(node) => {
+                      if (node) {
+                        listRefs.current[target.id] = node;
+                      } else {
+                        delete listRefs.current[target.id];
+                      }
+                    }}
+                    className={`target-card${isSelected ? ' target-card--selected' : ''}${
+                      isDetailsOpen ? ' target-card--active' : ''
+                    }`}
+                    onClick={() => handleSelectTarget(target.id)}
+                    onKeyDown={(event) => handleCardKeyDown(event, target.id)}
+                    role="button"
+                    tabIndex={0}
+                    aria-pressed={isSelected}
+                  >
+                    <span
+                      className="risk-indicator"
+                      style={{ backgroundColor: riskColors[target.riskLevel] }}
+                      aria-hidden
+                    />
+                    <div className="target-content">
+                      <div className="target-header">
+                        <strong>{target.callSign}</strong>
+                        <button
+                          type="button"
+                          className="details-button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleDetailsOpen(target.id);
+                          }}
+                          aria-haspopup="dialog"
+                          aria-expanded={isDetailsOpen}
+                        >
+                          Details
+                        </button>
                       </div>
-                    )}
-                  </div>
-                </div>
-              </li>
-              );
-            })}
+                      <dl className="target-meta">
+                        <div>
+                          <dt>Risk</dt>
+                          <dd>
+                            {target.riskLevel} · Score {target.riskScore}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>Start</dt>
+                          <dd>{formatCoordinate(target.startPosition)}</dd>
+                        </div>
+                        <div>
+                          <dt>Last seen</dt>
+                          <dd>{formatCoordinate(target.endPosition)}</dd>
+                        </div>
+                      </dl>
+                      <div className="action-panel action-panel--inline">
+                        <h4>Response actions</h4>
+                        <div className="action-buttons" role="group" aria-label="Mitigation actions">
+                          {Object.entries(actionDefinitions).map(([key, definition]) => {
+                            const outcome = target.actionOutcomes?.[key];
+                            const isDisabled = !outcome;
+                            return (
+                              <button
+                                key={key}
+                                type="button"
+                                className={definition.buttonClass}
+                                onClick={() => handleAction(target, key)}
+                                disabled={isDisabled}
+                              >
+                                {definition.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {actionResults[target.id] && (
+                          <div
+                            className={`action-status action-status--${actionResults[target.id].status}`}
+                            role="status"
+                          >
+                            <span className="action-status-label">{actionResults[target.id].label}</span>
+                            <span className="action-status-message">{actionResults[target.id].message}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </li>
+                );
+              })
+            )}
           </ul>
         </aside>
         <main className="map-wrapper" aria-label="Map display">
@@ -949,7 +1019,7 @@ function App() {
               attribution="&copy; OpenStreetMap contributors"
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-            {targets.map((target) => {
+            {filteredTargets.map((target) => {
               const pathColor = mitigatedTargets[target.id]
                 ? mitigationColor
                 : riskColors[target.riskLevel];
