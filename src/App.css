@@ -360,13 +360,52 @@ body {
 }
 
 .drone-marker {
-  transition: stroke-width 0.3s ease, stroke 0.3s ease;
+  transition: stroke-width 0.3s ease, stroke 0.3s ease, transform 0.3s ease;
 }
 
-.drone-marker--selected {
+.leaflet-interactive.drone-marker--selected {
   animation: markerPulse 1.2s ease-in-out infinite;
   stroke: #0ea5e9 !important;
   stroke-width: 4px !important;
+}
+
+.drone-emoji-marker {
+  --drone-color: #c92a2a;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  pointer-events: auto;
+}
+
+.drone-emoji-marker__ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 3px solid var(--drone-color);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25), 0 0 0 4px rgba(15, 23, 42, 0.08);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+}
+
+.drone-emoji-marker__glyph {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+  filter: grayscale(1) brightness(0);
+  transform-origin: 50% 50%;
+  transition: transform 0.3s ease;
+}
+
+.drone-emoji-marker.drone-marker--selected .drone-emoji-marker__ring {
+  animation: droneMarkerPulse 1.2s ease-in-out infinite;
+  border-color: #0ea5e9;
+  box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.35), 0 10px 20px rgba(14, 165, 233, 0.45);
 }
 
 @keyframes markerPulse {
@@ -380,6 +419,23 @@ body {
 
   100% {
     stroke-opacity: 1;
+  }
+}
+
+@keyframes droneMarkerPulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  50% {
+    transform: scale(1.08);
+    opacity: 0.65;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
   }
 }
 
@@ -438,8 +494,7 @@ body {
   align-items: center;
 }
 
-.legend-start,
-.legend-end {
+.legend-start {
   display: inline-block;
   width: 12px;
   height: 12px;
@@ -452,8 +507,18 @@ body {
   background: #ffffff;
 }
 
-.legend-end {
-  background: linear-gradient(135deg, #2f9e44, #f08c00, #c92a2a);
+.legend-drone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-right: 0.35rem;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.15);
+  font-size: 0.85rem;
+  filter: grayscale(1) brightness(0);
 }
 
 .action-tooltip {
