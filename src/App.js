@@ -625,7 +625,6 @@ function App() {
             maxBounds={regionalBounds}
             maxBoundsViscosity={1}
             className="map-container"
-            scrollWheelZoom={false}
           >
             <TileLayer
               attribution="&copy; OpenStreetMap contributors"
