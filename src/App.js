@@ -601,7 +601,6 @@ function App() {
         html: `
           <span class="radio-notify__pulse"></span>
           <span class="radio-notify__pulse radio-notify__pulse--delay"></span>
-          <span class="radio-notify__core"></span>
         `,
       }),
     [],
