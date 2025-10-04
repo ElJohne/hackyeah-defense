@@ -23,11 +23,45 @@ body {
   color: #ffffff;
   padding: 1.5rem 2rem;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
 }
 
 .app-header h1 {
   margin: 0;
   font-size: 1.5rem;
+}
+
+.download-button {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: #ffffff;
+  border: none;
+  border-radius: 999px;
+  padding: 0.5rem 1.25rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.download-button:hover,
+.download-button:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(22, 163, 74, 0.35);
+  background: linear-gradient(135deg, #16a34a, #15803d);
+}
+
+.download-button:focus-visible {
+  outline: 2px solid rgba(34, 197, 94, 0.6);
+  outline-offset: 3px;
+}
+
+.download-button:active {
+  transform: translateY(0);
+  box-shadow: 0 3px 10px rgba(21, 128, 61, 0.4);
 }
 
 .app-body {
@@ -258,6 +292,16 @@ body {
   transform: translateY(-1px);
 }
 
+.action-button--green {
+  background: #16a34a;
+}
+
+.action-button--green:hover:not(:disabled),
+.action-button--green:focus-visible:not(:disabled) {
+  background: #15803d;
+  transform: translateY(-1px);
+}
+
 .action-status {
   display: grid;
   gap: 0.35rem;
@@ -367,6 +411,34 @@ body {
   animation: markerPulse 1.2s ease-in-out infinite;
   stroke: #0ea5e9 !important;
   stroke-width: 4px !important;
+}
+
+.drone-end-marker {
+  width: 35px;
+  height: 35px;
+  border-radius: 999px;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.drone-end-marker__image {
+  width: 70%;
+  height: auto;
+  transform-origin: 47% 55%;
+  transition: transform 0.3s ease, filter 0.3s ease;
+  display: block;
+}
+
+.drone-marker--selected .drone-end-marker {
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.55),
+    0 6px 16px rgba(14, 165, 233, 0.45);
+}
+
+.drone-marker--selected .drone-end-marker__image {
+  filter: drop-shadow(0 0 6px rgba(14, 165, 233, 0.65));
 }
 
 @keyframes markerPulse {
