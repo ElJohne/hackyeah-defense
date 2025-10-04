@@ -30,7 +30,7 @@ const trajectoryOptions = {
 
 const mitigationColor = '#2563eb';
 
-const radioCoverageRadiusMeters = 100000;
+const radioCoverageRadiusMeters = 30000;
 const radioCoverageStyle = {
   color: '#1d4ed8',
   weight: 1.2,
@@ -1154,7 +1154,7 @@ function App() {
                       <div className="radio-tooltip">
                         <strong>{station.name}</strong>
                         <br />
-                        Coverage radius: 100 km
+                        Coverage radius: 30 km
                       </div>
                     </Tooltip>
                   </Marker>
