@@ -278,7 +278,71 @@ body {
 }
 
 .factor-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   font-weight: 500;
+}
+
+.factor-label__text {
+  display: inline-block;
+}
+
+.factor-help {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 9999px;
+  background-color: #e2e8f0;
+  color: #1f2937;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: help;
+  outline: none;
+}
+
+.factor-help:focus-visible {
+  box-shadow: 0 0 0 2px #94a3b8;
+}
+
+.factor-help__tooltip {
+  position: absolute;
+  z-index: 10;
+  bottom: calc(100% + 0.35rem);
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 16rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 0.35rem;
+  background-color: #111827;
+  color: #f9fafb;
+  font-size: 0.7rem;
+  line-height: 1.2;
+  text-align: left;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.25);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.factor-help__tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 6px;
+  border-style: solid;
+  border-color: #111827 transparent transparent transparent;
+}
+
+.factor-help:hover .factor-help__tooltip,
+.factor-help:focus-visible .factor-help__tooltip,
+.factor-help:active .factor-help__tooltip {
+  opacity: 1;
 }
 
 .factor-result {

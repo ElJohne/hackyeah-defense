@@ -429,6 +429,35 @@ const riskFactorDetails = {
   noSpeedChangeWaterLand: 'Consistent speed transitioning water ↔ land',
 };
 
+const riskFactorDescriptions = {
+  imeiModem:
+    'The cellular signature aligns with an IoT modem, which is typical for remote-control telemetry rather than a consumer handset.',
+  dataOnly:
+    'The SIM communicates using data-only service, pointing to a command-and-control link without normal voice or SMS activity.',
+  highSpeed:
+    'Ground track shows sustained high velocity, increasing the likelihood of a powered unmanned aircraft.',
+  highHandover:
+    'The device is rapidly roaming between cells, matching an airborne platform traversing multiple sectors.',
+  verticalMovement:
+    'Cell measurements indicate notable altitude changes, suggesting significant climb or descent.',
+  inNoFlyZone:
+    'The trajectory intersects a restricted or prohibited airspace where drone operations are not authorised.',
+  uasFlag:
+    'Network metadata already tags this subscriber as an unmanned aerial system asset.',
+  loitering:
+    'Movement pattern reveals dwell or circular loitering behaviour, often tied to surveillance missions.',
+  highAltitude:
+    'Reported altitude exceeds the expected range for hobbyist drones, elevating risk to other airspace users.',
+  missingRID:
+    'No Remote ID broadcast is detected, violating identification requirements and obscuring accountability.',
+  repeatSighting:
+    'This device has been observed in prior incidents, indicating persistent or deliberate activity.',
+  nearMannedCorridor:
+    'Flight path is close to established manned-aviation corridors, heightening collision hazards.',
+  noSpeedChangeWaterLand:
+    'Speed remains constant while transitioning between water and land sectors, signalling autonomous guidance.',
+};
+
 const computeRisk = (riskFactors) => {
   const riskScore = Object.entries(riskWeights).reduce(
     (score, [factor, weight]) => (riskFactors[factor] ? score + weight : score),
@@ -1218,7 +1247,19 @@ function App() {
                     const points = triggered ? weight : 0;
                     return (
                       <li key={factor}>
-                        <span className="factor-label">{riskFactorDetails[factor]}</span>
+                        <span className="factor-label">
+                          <span
+                            className="factor-help"
+                            tabIndex={0}
+                            aria-label={riskFactorDescriptions[factor]}
+                          >
+                            <span aria-hidden>?</span>
+                            <span className="factor-help__tooltip" role="tooltip">
+                              {riskFactorDescriptions[factor]}
+                            </span>
+                          </span>
+                          <span className="factor-label__text">{riskFactorDetails[factor]}</span>
+                        </span>
                         <span className="factor-result">
                           {triggered ? 'Yes' : 'No'}
                           <span className="factor-points">{` (+${points})`}</span>
