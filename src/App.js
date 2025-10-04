@@ -404,6 +404,26 @@ const computeRisk = (riskFactors) => {
   return { riskScore, riskLevel };
 };
 
+function computeDroneRotation(track) {
+  if (!track || track.length < 2) {
+    return 0;
+  }
+
+  const [prevLat, prevLng] = track[track.length - 2];
+  const [currLat, currLng] = track[track.length - 1];
+  const deltaLng = currLng - prevLng;
+  const deltaLat = currLat - prevLat;
+
+  if (deltaLat === 0 && deltaLng === 0) {
+    return 0;
+  }
+
+  const angleRadians = Math.atan2(deltaLat, deltaLng);
+  const angleDegrees = (angleRadians * 180) / Math.PI;
+
+  return (360 - angleDegrees + 360) % 360;
+}
+
 function App() {
   const [detailsTargetId, setDetailsTargetId] = useState(null);
   const [selectedTargetId, setSelectedTargetId] = useState(null);
@@ -473,26 +493,6 @@ function App() {
     fillColor: '#ffffff',
     fillOpacity: 1,
     className: 'drone-marker',
-  };
-
-  const computeDroneRotation = (track) => {
-    if (!track || track.length < 2) {
-      return 0;
-    }
-
-    const [prevLat, prevLng] = track[track.length - 2];
-    const [currLat, currLng] = track[track.length - 1];
-    const deltaLng = currLng - prevLng;
-    const deltaLat = currLat - prevLat;
-
-    if (deltaLat === 0 && deltaLng === 0) {
-      return 0;
-    }
-
-    const angleRadians = Math.atan2(deltaLat, deltaLng);
-    const angleDegrees = (angleRadians * 180) / Math.PI;
-
-    return (360 - angleDegrees + 360) % 360;
   };
 
   const createDroneIcon = (color, rotation) => {
