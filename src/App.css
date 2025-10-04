@@ -39,12 +39,64 @@ body {
   width: 320px;
   background-color: #ffffff;
   border-right: 1px solid #e5e7eb;
+  padding: 1.5rem;
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+
+.target-list {
+  list-style: none;
+  padding: 0;
+  margin: 1.5rem 0 0;
+  display: grid;
+  gap: 1rem;
+}
+
+.target-list li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.75rem;
+  align-items: center;
+  background-color: #f8f9fb;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+.risk-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.1);
+}
+
+.target-meta {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+  color: #475569;
+}
+
+.target-meta div {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.target-meta dt {
+  font-weight: 600;
+}
+
+.target-meta dd {
+  margin: 0;
 }
 
 .map-wrapper {
   flex: 1;
   display: flex;
   background-color: #dfe7ef;
+  position: relative;
 }
 
 .map-container {
@@ -52,4 +104,77 @@ body {
   width: 100%;
   height: 100%;
   min-height: 500px;
+}
+
+.map-legend {
+  position: absolute;
+  right: 1.5rem;
+  bottom: 1.5rem;
+  background-color: rgba(255, 255, 255, 0.95);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
+  min-width: 180px;
+}
+
+.map-legend h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.map-legend ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.map-legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.legend-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.15);
+}
+
+.legend-footnote {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e5e7eb;
+  font-size: 0.8rem;
+  color: #475569;
+}
+
+.legend-entry {
+  display: inline-flex;
+  align-items: center;
+}
+
+.legend-start,
+.legend-end {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  margin-right: 0.35rem;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.15);
+}
+
+.legend-start {
+  background: #ffffff;
+}
+
+.legend-end {
+  background: linear-gradient(135deg, #2f9e44, #f08c00, #c92a2a);
 }
