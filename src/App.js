@@ -1,14 +1,17 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   MapContainer,
   TileLayer,
   Popup,
   Polyline,
   CircleMarker,
+  Marker,
   Tooltip,
 } from 'react-leaflet';
+import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './App.css';
+import droneImage from './assets/drone.svg';
 
 const riskColors = {
   Low: '#2f9e44',
@@ -24,6 +27,30 @@ const trajectoryOptions = {
 };
 
 const mitigationColor = '#2563eb';
+
+const toRadians = (value) => (value * Math.PI) / 180;
+const toDegrees = (value) => (value * 180) / Math.PI;
+
+const computeHeading = (track) => {
+  if (!track || track.length < 2) {
+    return 0;
+  }
+
+  const [lat1, lon1] = track[track.length - 2];
+  const [lat2, lon2] = track[track.length - 1];
+
+  const φ1 = toRadians(lat1);
+  const φ2 = toRadians(lat2);
+  const Δλ = toRadians(lon2 - lon1);
+
+  const y = Math.sin(Δλ) * Math.cos(φ2);
+  const x =
+    Math.cos(φ1) * Math.sin(φ2) -
+    Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+
+  const bearing = (toDegrees(Math.atan2(y, x)) + 360) % 360;
+  return bearing;
+};
 
 const actionDefinitions = {
   simDetach: {
@@ -411,6 +438,7 @@ function App() {
   const trajectoryRefs = useRef({});
   const startMarkerRefs = useRef({});
   const endMarkerRefs = useRef({});
+  const droneIconCacheRef = useRef({});
   const mapRef = useRef(null);
   const polandCenter = [52.0976, 19.1451];
   const polandZoom = 6.5;
@@ -430,11 +458,40 @@ function App() {
         track: target.track,
         startPosition: target.track[0],
         endPosition: target.track[target.track.length - 1],
+        heading: computeHeading(target.track),
         riskFactors: target.riskFactors,
         actionOutcomes: target.actionOutcomes,
       })),
     [],
   );
+
+  const getDroneIcon = useCallback((riskLevel, heading) => {
+    const normalizedHeading = Math.round(heading);
+    const cacheKey = `${riskLevel}-${normalizedHeading}`;
+
+    if (!droneIconCacheRef.current[cacheKey]) {
+      droneIconCacheRef.current[cacheKey] = L.divIcon({
+        className: '',
+        html: `
+          <div class="drone-end-marker" style="background:${riskColors[riskLevel]}">
+            <img
+              src="${droneImage}"
+              alt=""
+              role="presentation"
+              class="drone-end-marker__image"
+              style="transform: rotate(${normalizedHeading}deg);"
+            />
+          </div>
+        `,
+        iconSize: [44, 44],
+        iconAnchor: [22, 22],
+        popupAnchor: [0, -24],
+        tooltipAnchor: [0, -28],
+      });
+    }
+
+    return droneIconCacheRef.current[cacheKey];
+  }, []);
 
   useEffect(() => {
     if (!toast) {
@@ -464,15 +521,6 @@ function App() {
     fillOpacity: 1,
     className: 'drone-marker',
   };
-
-  const createEndMarkerOptions = (riskLevel) => ({
-    radius: 7,
-    weight: 2,
-    color: '#ffffff',
-    fillColor: riskColors[riskLevel],
-    fillOpacity: 1,
-    className: 'drone-marker',
-  });
 
   const formatCoordinate = ([lat, lon]) => `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
 
@@ -807,7 +855,7 @@ function App() {
                       Launch position: {formatCoordinate(target.startPosition)}
                     </Popup>
                   </CircleMarker>
-                  <CircleMarker
+                  <Marker
                     ref={(instance) => {
                       if (instance) {
                         endMarkerRefs.current[target.id] = instance;
@@ -815,8 +863,8 @@ function App() {
                         delete endMarkerRefs.current[target.id];
                       }
                     }}
-                    center={target.endPosition}
-                    pathOptions={createEndMarkerOptions(target.riskLevel)}
+                    position={target.endPosition}
+                    icon={getDroneIcon(target.riskLevel, target.heading)}
                     eventHandlers={{
                       click: () => handleSelectTarget(target.id),
                     }}
@@ -831,7 +879,7 @@ function App() {
                     {actionResults[target.id] && (
                       <Tooltip
                         direction="top"
-                        offset={[0, -8]}
+                        offset={[0, -26]}
                         permanent
                         className={`action-tooltip action-tooltip--${actionResults[target.id].status}`}
                       >
@@ -839,7 +887,7 @@ function App() {
                         <span className="action-tooltip-message">{actionResults[target.id].message}</span>
                       </Tooltip>
                     )}
-                  </CircleMarker>
+                  </Marker>
                 </Fragment>
               );
             })}
