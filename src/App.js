@@ -212,10 +212,12 @@ const computeRisk = (riskFactors) => {
 function App() {
   const [selectedTargetId, setSelectedTargetId] = useState(null);
   const polandCenter = [52.0976, 19.1451];
-  const polandZoom = 6;
-  const polandBounds = [
-    [48.9965, 14.1229],
-    [54.8356, 24.1458],
+  const polandZoom = 6.5;
+  const mapMinZoom = 5.5;
+  const mapMaxZoom = 20;
+  const regionalBounds = [
+    [47.0, 11.0],
+    [56.0, 27.0],
   ];
 
   const targets = rawTargets.map((target, index) => ({
@@ -320,7 +322,11 @@ function App() {
           <MapContainer
             center={polandCenter}
             zoom={polandZoom}
-            bounds={polandBounds}
+            minZoom={mapMinZoom}
+            maxZoom={mapMaxZoom}
+            zoomSnap={0.5}
+            maxBounds={regionalBounds}
+            maxBoundsViscosity={1}
             className="map-container"
           >
             <TileLayer
