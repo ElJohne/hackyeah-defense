@@ -488,14 +488,14 @@ body {
 }
 
 .radio-coverage--active {
-  animation: radioCoveragePulse 2.6s ease-in-out infinite;
+  animation: radioCoveragePulse 1s ease-in-out infinite;
 }
 
 @keyframes radioCoveragePulse {
   0%,
   100% {
     stroke-opacity: 0.85;
-    fill-opacity: 0.16;
+    fill-opacity: 0.5;
     stroke-width: 1.2;
   }
 
@@ -687,11 +687,11 @@ body {
   margin-right: 0.35rem;
   background: radial-gradient(
     circle at center,
-    rgba(37, 99, 235, 0.85) 0%,
+    rgba(37, 99, 235, 0.6) 0%,
     rgba(37, 99, 235, 0.35) 55%,
     rgba(37, 99, 235, 0.12) 100%
   );
-  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.4);
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.1);
 }
 
 .radio-station-icon {
@@ -703,7 +703,7 @@ body {
   display: block;
   width: 48px;
   height: 48px;
-  filter: drop-shadow(0 4px 10px rgba(37, 99, 235, 0.35));
+  filter: drop-shadow(0 4px 10px rgba(37, 99, 235, 0.1));
 }
 
 .radio-tooltip {
