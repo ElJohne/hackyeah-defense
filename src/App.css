@@ -568,6 +568,8 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
+  flex-wrap: wrap;
+  row-gap: 0.5rem;
   margin-top: 0.75rem;
   padding-top: 0.75rem;
   border-top: 1px solid #e5e7eb;
@@ -596,6 +598,38 @@ body {
 
 .legend-end {
   background: linear-gradient(135deg, #2f9e44, #f08c00, #c92a2a);
+}
+
+.legend-radio {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  margin-right: 0.35rem;
+  background: radial-gradient(
+    circle at center,
+    rgba(37, 99, 235, 0.85) 0%,
+    rgba(37, 99, 235, 0.35) 55%,
+    rgba(37, 99, 235, 0.12) 100%
+  );
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.4);
+}
+
+.radio-station-icon {
+  width: 48px !important;
+  height: 48px !important;
+}
+
+.radio-station-icon svg {
+  display: block;
+  width: 48px;
+  height: 48px;
+  filter: drop-shadow(0 4px 10px rgba(37, 99, 235, 0.35));
+}
+
+.radio-tooltip {
+  font-size: 0.75rem;
+  line-height: 1.25;
 }
 
 .action-tooltip {

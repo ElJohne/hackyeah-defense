@@ -5,6 +5,7 @@ import {
   Popup,
   Polyline,
   CircleMarker,
+  Circle,
   Marker,
   Tooltip,
 } from 'react-leaflet';
@@ -28,6 +29,93 @@ const trajectoryOptions = {
 };
 
 const mitigationColor = '#2563eb';
+
+const radioCoverageRadiusMeters = 100000;
+const radioCoverageStyle = {
+  color: '#1d4ed8',
+  weight: 1.2,
+  dashArray: '6 10',
+  fillColor: '#3b82f6',
+  fillOpacity: 0.1,
+};
+
+const radioStations = [
+  {
+    id: 'szczecin',
+    name: 'Szczecin Mobile Intercept Node',
+    position: [53.4285, 14.5528],
+  },
+  {
+    id: 'zielona-gora',
+    name: 'Zielona Góra Mobile Intercept Node',
+    position: [51.9356, 15.5062],
+  },
+  {
+    id: 'poznan',
+    name: 'Poznań Mobile Intercept Node',
+    position: [52.4064, 16.9252],
+  },
+  {
+    id: 'bydgoszcz',
+    name: 'Bydgoszcz Mobile Intercept Node',
+    position: [53.1235, 18.0084],
+  },
+  {
+    id: 'gdansk',
+    name: 'Gdańsk Mobile Intercept Node',
+    position: [54.352, 18.6466],
+  },
+  {
+    id: 'olsztyn',
+    name: 'Olsztyn Mobile Intercept Node',
+    position: [53.7784, 20.4801],
+  },
+  {
+    id: 'warsaw',
+    name: 'Warsaw Mobile Intercept Node',
+    position: [52.2297, 21.0122],
+  },
+  {
+    id: 'lodz',
+    name: 'Łódź Mobile Intercept Node',
+    position: [51.7592, 19.455],
+  },
+  {
+    id: 'lublin',
+    name: 'Lublin Mobile Intercept Node',
+    position: [51.2465, 22.5684],
+  },
+  {
+    id: 'rzeszow',
+    name: 'Rzeszów Mobile Intercept Node',
+    position: [50.0412, 21.9991],
+  },
+  {
+    id: 'krakow',
+    name: 'Kraków Mobile Intercept Node',
+    position: [50.0647, 19.945],
+  },
+  {
+    id: 'katowice',
+    name: 'Katowice Mobile Intercept Node',
+    position: [50.2709, 19.039],
+  },
+  {
+    id: 'wroclaw',
+    name: 'Wrocław Mobile Intercept Node',
+    position: [51.1079, 17.0385],
+  },
+  {
+    id: 'bialystok',
+    name: 'Białystok Mobile Intercept Node',
+    position: [53.1325, 23.1688],
+  },
+  {
+    id: 'suwalki',
+    name: 'Suwałki Mobile Intercept Node',
+    position: [54.1117, 22.9302],
+  },
+];
 
 const toRadians = (value) => (value * Math.PI) / 180;
 const toDegrees = (value) => (value * 180) / Math.PI;
@@ -465,6 +553,25 @@ function App() {
     [47.0, 11.0],
     [56.0, 27.0],
   ];
+
+  const radioStationIcon = useMemo(
+    () =>
+      L.divIcon({
+        className: 'radio-station-icon',
+        iconSize: [48, 48],
+        iconAnchor: [24, 24],
+        popupAnchor: [0, -24],
+        html: `
+          <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Mobile interception station">
+            <circle cx="24" cy="24" r="22" fill="rgba(37, 99, 235, 0.12)" />
+            <circle cx="24" cy="24" r="14" fill="rgba(37, 99, 235, 0.35)" />
+            <circle cx="24" cy="24" r="6" fill="#1d4ed8" />
+            <path d="M24 10v8M24 30v8M10 24h8M30 24h8" stroke="#1d4ed8" stroke-width="2.5" stroke-linecap="round" />
+          </svg>
+        `,
+      }),
+    [],
+  );
 
   const targets = useMemo(
     () =>
@@ -1019,6 +1126,24 @@ function App() {
               attribution="&copy; OpenStreetMap contributors"
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
+            {radioStations.map((station) => (
+              <Fragment key={station.id}>
+                <Circle
+                  center={station.position}
+                  radius={radioCoverageRadiusMeters}
+                  pathOptions={radioCoverageStyle}
+                />
+                <Marker position={station.position} icon={radioStationIcon}>
+                  <Tooltip direction="top" offset={[0, -28]}>
+                    <div className="radio-tooltip">
+                      <strong>{station.name}</strong>
+                      <br />
+                      Coverage radius: 100 km
+                    </div>
+                  </Tooltip>
+                </Marker>
+              </Fragment>
+            ))}
             {filteredTargets.map((target) => {
               const pathColor = mitigatedTargets[target.id]
                 ? mitigationColor
@@ -1119,6 +1244,10 @@ function App() {
               <span className="legend-entry">
                 <span className="legend-end" aria-hidden />
                 Current position
+              </span>
+              <span className="legend-entry">
+                <span className="legend-radio" aria-hidden />
+                Mobile intercept station
               </span>
             </div>
           </div>
