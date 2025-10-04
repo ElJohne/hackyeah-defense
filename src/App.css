@@ -512,25 +512,25 @@ body {
   }
 }
 
-.drone-coverage {
-  pointer-events: none;
-  animation: droneCoveragePulse 1.8s ease-in-out infinite;
-}
+/*.drone-coverage {*/
+/*  pointer-events: none;*/
+/*  animation: droneCoveragePulse 1.8s ease-in-out infinite;*/
+/*}*/
 
-@keyframes droneCoveragePulse {
-  0%,
-  100% {
-    stroke-opacity: 0.85;
-    fill-opacity: 0.2;
-    stroke-width: 2;
-  }
+/*@keyframes droneCoveragePulse {*/
+/*  0%,*/
+/*  100% {*/
+/*    stroke-opacity: 0.85;*/
+/*    fill-opacity: 0.2;*/
+/*    stroke-width: 2;*/
+/*  }*/
 
-  50% {
-    stroke-opacity: 0.3;
-    fill-opacity: 0.05;
-    stroke-width: 5;
-  }
-}
+/*  50% {*/
+/*    stroke-opacity: 0.3;*/
+/*    fill-opacity: 0.05;*/
+/*    stroke-width: 5;*/
+/*  }*/
+/*}*/
 
 .trajectory {
   transition: filter 0.3s ease, stroke-width 0.3s ease, stroke-opacity 0.3s ease;

@@ -692,28 +692,28 @@ function App() {
     [riskFilters, targets],
   );
 
-  const { engagedStations, coveredTargets } = useMemo(() => {
+  const engagedStations = useMemo(() => {
     const engaged = new Set();
-    const covered = new Set();
+    // const covered = new Set();
 
     targets.forEach((target) => {
-      const isCovered = radioStations.some((station) => {
+      radioStations.forEach((station) => {
         const distance = computeDistanceMeters(station.position, target.endPosition);
 
         if (distance <= radioCoverageRadiusMeters) {
           engaged.add(station.id);
-          return true;
+          // return true;
         }
 
-        return false;
+        // return false;
       });
 
-      if (isCovered) {
-        covered.add(target.id);
-      }
+      // if (isCovered) {
+      //   covered.add(target.id);
+      // }
     });
 
-    return { engagedStations: engaged, coveredTargets: covered };
+    return engaged; //{ engagedStations: engaged, coveredTargets: covered };
   }, [targets]);
 
   const activeStation = useMemo(() => {
@@ -1328,7 +1328,7 @@ function App() {
               const pathColor = mitigatedTargets[target.id]
                 ? mitigationColor
                 : riskColors[target.riskLevel];
-              const isTargetCovered = coveredTargets.has(target.id);
+              // const isTargetCovered = coveredTargets.has(target.id);
 
               return (
                 <Fragment key={target.id}>
@@ -1370,22 +1370,22 @@ function App() {
                       Launch position: {formatCoordinate(target.startPosition)}
                     </Popup>
                   </CircleMarker>
-                  {isTargetCovered && (
-                    <CircleMarker
-                      center={target.endPosition}
-                      radius={18}
-                      interactive={false}
-                      pane="shadowPane"
-                      pathOptions={{
-                        color: '#1d4ed8',
-                        weight: 2,
-                        fill: true,
-                        fillColor: '#3b82f6',
-                        fillOpacity: 0.18,
-                        className: 'drone-coverage',
-                      }}
-                    />
-                  )}
+                  {/*{isTargetCovered && (*/}
+                  {/*  <CircleMarker*/}
+                  {/*    center={target.endPosition}*/}
+                  {/*    radius={18}*/}
+                  {/*    interactive={false}*/}
+                  {/*    pane="shadowPane"*/}
+                  {/*    pathOptions={{*/}
+                  {/*      color: '#1d4ed8',*/}
+                  {/*      weight: 2,*/}
+                  {/*      fill: true,*/}
+                  {/*      fillColor: '#3b82f6',*/}
+                  {/*      fillOpacity: 0.18,*/}
+                  {/*      className: 'drone-coverage',*/}
+                  {/*    }}*/}
+                  {/*  />*/}
+                  {/*)}*/}
                   <Marker
                     ref={(instance) => {
                       if (instance) {
