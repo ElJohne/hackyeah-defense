@@ -360,8 +360,7 @@ body {
 }
 
 .drone-marker {
-  transition: stroke-width 0.3s ease, stroke 0.3s ease, transform 0.3s ease,
-    box-shadow 0.3s ease;
+  transition: stroke-width 0.3s ease, stroke 0.3s ease;
 }
 
 .drone-marker--selected {
@@ -371,8 +370,8 @@ body {
 }
 
 .drone-end-marker {
-  width: 44px;
-  height: 44px;
+  width: 35px;
+  height: 35px;
   border-radius: 999px;
   border: 2px solid #ffffff;
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.35);
@@ -384,7 +383,7 @@ body {
 .drone-end-marker__image {
   width: 70%;
   height: auto;
-  transform-origin: 50% 50%;
+  transform-origin: 47% 55%;
   transition: transform 0.3s ease, filter 0.3s ease;
   display: block;
 }
