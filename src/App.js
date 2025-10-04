@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import {
   MapContainer,
   TileLayer,
@@ -402,7 +402,7 @@ const computeRisk = (riskFactors) => {
 };
 
 function App() {
-  const [selectedTargetId, setSelectedTargetId] = useState(null);
+  const [detailsTargetId, setDetailsTargetId] = useState(null);
   const [toast, setToast] = useState(null);
   const [actionResults, setActionResults] = useState({});
   const [mitigatedTargets, setMitigatedTargets] = useState({});
@@ -415,16 +415,20 @@ function App() {
     [56.0, 27.0],
   ];
 
-  const targets = rawTargets.map((target, index) => ({
-    ...computeRisk(target.riskFactors),
-    callSign: `Drone-${String(index + 1).padStart(3, '0')}`,
-    id: target.id,
-    track: target.track,
-    startPosition: target.track[0],
-    endPosition: target.track[target.track.length - 1],
-    riskFactors: target.riskFactors,
-    actionOutcomes: target.actionOutcomes,
-  }));
+  const targets = useMemo(
+    () =>
+      rawTargets.map((target, index) => ({
+        ...computeRisk(target.riskFactors),
+        callSign: `Drone-${String(index + 1).padStart(3, '0')}`,
+        id: target.id,
+        track: target.track,
+        startPosition: target.track[0],
+        endPosition: target.track[target.track.length - 1],
+        riskFactors: target.riskFactors,
+        actionOutcomes: target.actionOutcomes,
+      })),
+    [],
+  );
 
   useEffect(() => {
     if (!toast) {
@@ -434,6 +438,17 @@ function App() {
     const timer = setTimeout(() => setToast(null), 3000);
     return () => clearTimeout(timer);
   }, [toast]);
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setDetailsTargetId(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const startMarkerOptions = {
     radius: 6,
@@ -465,6 +480,11 @@ function App() {
       color: mitigationColor,
     },
   ];
+
+  const selectedTarget = useMemo(
+    () => targets.find((target) => target.id === detailsTargetId) || null,
+    [detailsTargetId, targets],
+  );
 
   const handleAction = (target, actionKey) => {
     const definition = actionDefinitions[actionKey];
@@ -510,7 +530,12 @@ function App() {
           <h2>Targets</h2>
           <ul className="target-list">
             {targets.map((target) => (
-              <li key={target.id}>
+              <li
+                key={target.id}
+                className={
+                  detailsTargetId === target.id ? 'target-card target-card--active' : 'target-card'
+                }
+              >
                 <span
                   className="risk-indicator"
                   style={{ backgroundColor: riskColors[target.riskLevel] }}
@@ -522,12 +547,9 @@ function App() {
                     <button
                       type="button"
                       className="details-button"
-                      onClick={() =>
-                        setSelectedTargetId((current) =>
-                          current === target.id ? null : target.id,
-                        )
-                      }
-                      aria-expanded={selectedTargetId === target.id}
+                      onClick={() => setDetailsTargetId(target.id)}
+                      aria-haspopup="dialog"
+                      aria-expanded={detailsTargetId === target.id}
                     >
                       Details
                     </button>
@@ -548,54 +570,35 @@ function App() {
                       <dd>{formatCoordinate(target.endPosition)}</dd>
                     </div>
                   </dl>
-                  {selectedTargetId === target.id && (
-                    <ul className="factor-breakdown">
-                      {Object.entries(riskWeights).map(([factor, weight]) => {
-                        const triggered = target.riskFactors[factor];
-                        const points = triggered ? weight : 0;
+                  <div className="action-panel action-panel--inline">
+                    <h4>Response actions</h4>
+                    <div className="action-buttons" role="group" aria-label="Mitigation actions">
+                      {Object.entries(actionDefinitions).map(([key, definition]) => {
+                        const outcome = target.actionOutcomes?.[key];
+                        const isDisabled = !outcome;
                         return (
-                          <li key={factor}>
-                            <span className="factor-label">{riskFactorDetails[factor]}</span>
-                            <span className="factor-result">
-                              {triggered ? 'Yes' : 'No'}
-                              <span className="factor-points">{` (+${points})`}</span>
-                            </span>
-                          </li>
+                          <button
+                            key={key}
+                            type="button"
+                            className={definition.buttonClass}
+                            onClick={() => handleAction(target, key)}
+                            disabled={isDisabled}
+                          >
+                            {definition.label}
+                          </button>
                         );
                       })}
-                    </ul>
-                  )}
-                  {selectedTargetId === target.id && (
-                    <div className="action-panel">
-                      <h4>Response actions</h4>
-                      <div className="action-buttons" role="group" aria-label="Mitigation actions">
-                        {Object.entries(actionDefinitions).map(([key, definition]) => {
-                          const outcome = target.actionOutcomes?.[key];
-                          const isDisabled = !outcome;
-                          return (
-                            <button
-                              key={key}
-                              type="button"
-                              className={definition.buttonClass}
-                              onClick={() => handleAction(target, key)}
-                              disabled={isDisabled}
-                            >
-                              {definition.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      {actionResults[target.id] && (
-                        <div
-                          className={`action-status action-status--${actionResults[target.id].status}`}
-                          role="status"
-                        >
-                          <span className="action-status-label">{actionResults[target.id].label}</span>
-                          <span className="action-status-message">{actionResults[target.id].message}</span>
-                        </div>
-                      )}
                     </div>
-                  )}
+                    {actionResults[target.id] && (
+                      <div
+                        className={`action-status action-status--${actionResults[target.id].status}`}
+                        role="status"
+                      >
+                        <span className="action-status-label">{actionResults[target.id].label}</span>
+                        <span className="action-status-message">{actionResults[target.id].message}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </li>
             ))}
@@ -622,6 +625,7 @@ function App() {
             maxBounds={regionalBounds}
             maxBoundsViscosity={1}
             className="map-container"
+            scrollWheelZoom={false}
           >
             <TileLayer
               attribution="&copy; OpenStreetMap contributors"
@@ -693,6 +697,69 @@ function App() {
             </div>
           </div>
         </main>
+        {selectedTarget && (
+          <div className="modal-overlay" role="presentation" onClick={() => setDetailsTargetId(null)}>
+            <div
+              className="modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={`target-modal-${selectedTarget.id}`}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="modal-header">
+                <div className="modal-title-group">
+                  <span
+                    className="risk-indicator"
+                    style={{ backgroundColor: riskColors[selectedTarget.riskLevel] }}
+                    aria-hidden
+                  />
+                  <div>
+                    <h2 id={`target-modal-${selectedTarget.id}`}>{selectedTarget.callSign}</h2>
+                    <p className="modal-subtitle">
+                      Risk {selectedTarget.riskLevel} · Score {selectedTarget.riskScore}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="modal-close"
+                  aria-label="Close details"
+                  onClick={() => setDetailsTargetId(null)}
+                >
+                  ×
+                </button>
+              </div>
+              <div className="modal-body">
+                <dl className="modal-meta">
+                  <div>
+                    <dt>Launch position</dt>
+                    <dd>{formatCoordinate(selectedTarget.startPosition)}</dd>
+                  </div>
+                  <div>
+                    <dt>Current position</dt>
+                    <dd>{formatCoordinate(selectedTarget.endPosition)}</dd>
+                  </div>
+                </dl>
+                <h3>Risk factor breakdown</h3>
+                <ul className="factor-breakdown">
+                  {Object.entries(riskWeights).map(([factor, weight]) => {
+                    const triggered = selectedTarget.riskFactors[factor];
+                    const points = triggered ? weight : 0;
+                    return (
+                      <li key={factor}>
+                        <span className="factor-label">{riskFactorDetails[factor]}</span>
+                        <span className="factor-result">
+                          {triggered ? 'Yes' : 'No'}
+                          <span className="factor-points">{` (+${points})`}</span>
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
