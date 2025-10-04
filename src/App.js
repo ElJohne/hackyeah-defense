@@ -537,7 +537,10 @@ function App() {
     className: 'drone-marker',
   };
 
-  const formatCoordinate = ([lat, lon]) => `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+  const formatCoordinate = useCallback(
+    ([lat, lon]) => `${lat.toFixed(4)}, ${lon.toFixed(4)}`,
+    []
+  );
 
   const legendItems = [
     ...Object.entries(riskColors).map(([level, color]) => ({
