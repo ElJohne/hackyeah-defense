@@ -453,6 +453,8 @@ function App() {
   const [mitigatedTargets, setMitigatedTargets] = useState({});
   const [actionLog, setActionLog] = useState([]);
   const [riskFilters, setRiskFilters] = useState([]);
+  const [usedActions, setUsedActions] = useState({});
+  const [targetOrder, setTargetOrder] = useState(() => rawTargets.map((target) => target.id));
   const listRefs = useRef({});
   const trajectoryRefs = useRef({});
   const startMarkerRefs = useRef({});
@@ -511,13 +513,20 @@ function App() {
     });
   }, []);
 
+  const orderedTargets = useMemo(() => {
+    const targetMap = new Map(targets.map((target) => [target.id, target]));
+    return targetOrder.map((id) => targetMap.get(id)).filter(Boolean);
+  }, [targetOrder, targets]);
+
   const filteredTargets = useMemo(
     () =>
       riskFilters.length === 0
-        ? targets
-        : targets.filter((target) => riskFilters.includes(target.riskLevel)),
-    [riskFilters, targets],
+        ? orderedTargets
+        : orderedTargets.filter((target) => riskFilters.includes(target.riskLevel)),
+    [orderedTargets, riskFilters],
   );
+
+  const totalActionCount = useMemo(() => Object.keys(actionDefinitions).length, []);
 
   const getDroneIcon = useCallback((riskLevel, heading) => {
     const normalizedHeading = Math.round(heading);
@@ -816,7 +825,10 @@ function App() {
   const handleAction = (target, actionKey) => {
     const definition = actionDefinitions[actionKey];
     const outcome = target.actionOutcomes?.[actionKey];
-    if (!definition || !outcome) {
+    const actionsUsedByTarget = usedActions[target.id] ?? [];
+    const isActionAlreadyUsed = actionsUsedByTarget.includes(actionKey);
+
+    if (!definition || !outcome || isActionAlreadyUsed) {
       return;
     }
 
@@ -866,6 +878,24 @@ function App() {
       status,
       timestamp: Date.now(),
     });
+
+    const nextActionsForTarget = [...actionsUsedByTarget, actionKey];
+    setUsedActions((prev) => ({
+      ...prev,
+      [target.id]: nextActionsForTarget,
+    }));
+
+    if (nextActionsForTarget.length >= totalActionCount) {
+      setTargetOrder((previousOrder) => {
+        if (!previousOrder.includes(target.id)) {
+          return previousOrder;
+        }
+
+        const nextOrder = previousOrder.filter((id) => id !== target.id);
+        nextOrder.push(target.id);
+        return nextOrder;
+      });
+    }
   };
 
   return (
@@ -968,14 +998,20 @@ function App() {
                         <div className="action-buttons" role="group" aria-label="Mitigation actions">
                           {Object.entries(actionDefinitions).map(([key, definition]) => {
                             const outcome = target.actionOutcomes?.[key];
-                            const isDisabled = !outcome;
+                            const actionsUsedForTarget = usedActions[target.id] ?? [];
+                            const isActionUsed = actionsUsedForTarget.includes(key);
+                            const allActionsUsed = actionsUsedForTarget.length >= totalActionCount;
+                            const shouldDisable = !outcome || isActionUsed || allActionsUsed;
+                            const buttonClassName = `${definition.buttonClass}${
+                              isActionUsed || allActionsUsed ? ' action-button--deactivated' : ''
+                            }`;
                             return (
                               <button
                                 key={key}
                                 type="button"
-                                className={definition.buttonClass}
+                                className={buttonClassName}
                                 onClick={() => handleAction(target, key)}
-                                disabled={isDisabled}
+                                disabled={shouldDisable}
                               >
                                 {definition.label}
                               </button>

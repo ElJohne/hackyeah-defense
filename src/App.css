@@ -372,6 +372,22 @@ body {
   transform: translateY(-1px);
 }
 
+.action-button.action-button--deactivated {
+  background: #9ca3af;
+  color: #1f2937;
+}
+
+.action-button.action-button--deactivated:hover:not(:disabled),
+.action-button.action-button--deactivated:focus-visible:not(:disabled) {
+  background: #9ca3af;
+  color: #1f2937;
+  transform: none;
+}
+
+.action-button.action-button--deactivated:disabled {
+  opacity: 1;
+}
+
 .action-status {
   display: grid;
   gap: 0.35rem;
