@@ -163,15 +163,31 @@ const rawTargets = [
   },
 ];
 
-const calculateRiskProfile = (riskFactors) => {
-  const flags = Object.values(riskFactors);
-  const positiveFlags = flags.filter(Boolean).length;
-  const riskScore = Math.round((positiveFlags / flags.length) * 100);
+const riskWeights = {
+  imeiModem: 10,
+  dataOnly: 5,
+  highSpeed: 5,
+  highHandover: 5,
+  verticalMovement: 5,
+  inNoFlyZone: 30,
+  uasFlag: 10,
+  loitering: 5,
+  highAltitude: 5,
+  missingRID: 15,
+  repeatSighting: 5,
+  nearMannedCorridor: 10,
+};
+
+const computeRisk = (riskFactors) => {
+  const riskScore = Object.entries(riskWeights).reduce(
+    (score, [factor, weight]) => (riskFactors[factor] ? score + weight : score),
+    0,
+  );
 
   let riskLevel = 'Low';
-  if (riskScore >= 70) {
+  if (riskScore >= 50) {
     riskLevel = 'High';
-  } else if (riskScore >= 40) {
+  } else if (riskScore >= 20) {
     riskLevel = 'Medium';
   }
 
@@ -187,7 +203,7 @@ function App() {
   ];
 
   const targets = rawTargets.map((target, index) => ({
-    ...calculateRiskProfile(target.riskFactors),
+    ...computeRisk(target.riskFactors),
     callSign: `Drone-${String(index + 1).padStart(3, '0')}`,
     id: target.id,
     track: target.track,
