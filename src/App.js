@@ -410,6 +410,7 @@ const riskWeights = {
   missingRID: 15,
   repeatSighting: 5,
   nearMannedCorridor: 10,
+  noSpeedChangeWaterLand: 20,
 };
 
 const riskFactorDetails = {
@@ -425,6 +426,7 @@ const riskFactorDetails = {
   missingRID: 'Remote ID missing',
   repeatSighting: 'Repeat sighting recorded',
   nearMannedCorridor: 'Near manned air corridor',
+  noSpeedChangeWaterLand: 'Consistent speed transitioning water ↔ land',
 };
 
 const computeRisk = (riskFactors) => {
@@ -468,17 +470,24 @@ function App() {
 
   const targets = useMemo(
     () =>
-      rawTargets.map((target, index) => ({
-        ...computeRisk(target.riskFactors),
-        callSign: `Drone-${String(index + 1).padStart(3, '0')}`,
-        id: target.id,
-        track: target.track,
-        startPosition: target.track[0],
-        endPosition: target.track[target.track.length - 1],
-        heading: computeHeading(target.track),
-        riskFactors: target.riskFactors,
-        actionOutcomes: target.actionOutcomes,
-      })),
+      rawTargets.map((target, index) => {
+        const riskFactors = {
+          ...target.riskFactors,
+          noSpeedChangeWaterLand: Math.random() < 0.5,
+        };
+
+        return {
+          ...computeRisk(riskFactors),
+          callSign: `Drone-${String(index + 1).padStart(3, '0')}`,
+          id: target.id,
+          track: target.track,
+          startPosition: target.track[0],
+          endPosition: target.track[target.track.length - 1],
+          heading: computeHeading(target.track),
+          riskFactors,
+          actionOutcomes: target.actionOutcomes,
+        };
+      }),
     [],
   );
 
