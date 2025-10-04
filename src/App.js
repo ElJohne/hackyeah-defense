@@ -214,7 +214,7 @@ function App() {
   const polandCenter = [52.0976, 19.1451];
   const polandZoom = 6.5;
   const mapMinZoom = 5.5;
-  const mapMaxZoom = 9;
+  const mapMaxZoom = 20;
   const regionalBounds = [
     [47.0, 11.0],
     [56.0, 27.0],
