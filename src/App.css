@@ -311,18 +311,19 @@ body {
 .factor-help__tooltip {
   position: absolute;
   z-index: 10;
-  bottom: calc(100% + 0.35rem);
-  left: 50%;
-  transform: translateX(-50%);
-  max-width: 16rem;
-  padding: 0.45rem 0.6rem;
-  border-radius: 0.35rem;
-  background-color: #111827;
-  color: #f9fafb;
-  font-size: 0.7rem;
-  line-height: 1.2;
+  top: 50%;
+  left: calc(100% + 0.5rem);
+  transform: translateY(-50%);
+  min-width: 16rem;
+  max-width: 20rem;
+  padding: 0.6rem 0.85rem;
+  border-radius: 0.5rem;
+  background-color: #0f172a;
+  color: #f8fafc;
+  font-size: 0.72rem;
+  line-height: 1.35;
   text-align: left;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.25);
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.35);
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.15s ease;
@@ -331,12 +332,12 @@ body {
 .factor-help__tooltip::after {
   content: '';
   position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  border-width: 6px;
+  top: 50%;
+  left: -8px;
+  transform: translateY(-50%);
+  border-width: 8px;
   border-style: solid;
-  border-color: #111827 transparent transparent transparent;
+  border-color: transparent #0f172a transparent transparent;
 }
 
 .factor-help:hover .factor-help__tooltip,
@@ -715,16 +716,17 @@ body {
   padding: 2rem;
   z-index: 1500;
   backdrop-filter: blur(2px);
+  overflow-y: auto;
 }
 
 .modal {
+  position: relative;
   background: #ffffff;
   border-radius: 1rem;
   padding: 1.5rem;
   width: min(520px, 100%);
-  max-height: calc(100vh - 4rem);
-  overflow-y: auto;
   box-shadow: 0 20px 40px rgba(15, 23, 42, 0.35);
+  overflow: visible;
 }
 
 .modal-header {
