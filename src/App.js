@@ -556,6 +556,7 @@ function App() {
   const [riskFilters, setRiskFilters] = useState([]);
   const [showRadioStations, setShowRadioStations] = useState(true);
   const [notifyingStations, setNotifyingStations] = useState(() => new Set());
+  const [activeStationId, setActiveStationId] = useState(null);
   const listRefs = useRef({});
   const trajectoryRefs = useRef({});
   const startMarkerRefs = useRef({});
@@ -600,7 +601,6 @@ function App() {
         html: `
           <span class="radio-notify__pulse"></span>
           <span class="radio-notify__pulse radio-notify__pulse--delay"></span>
-          <span class="radio-notify__core"></span>
         `,
       }),
     [],
@@ -678,6 +678,12 @@ function App() {
     setShowRadioStations((prev) => !prev);
   }, []);
 
+  useEffect(() => {
+    if (!showRadioStations) {
+      setActiveStationId(null);
+    }
+  }, [showRadioStations]);
+
   const filteredTargets = useMemo(
     () =>
       riskFilters.length === 0
@@ -686,29 +692,37 @@ function App() {
     [riskFilters, targets],
   );
 
-  const { engagedStations, coveredTargets } = useMemo(() => {
+  const engagedStations = useMemo(() => {
     const engaged = new Set();
-    const covered = new Set();
+    // const covered = new Set();
 
     targets.forEach((target) => {
-      const isCovered = radioStations.some((station) => {
+      radioStations.forEach((station) => {
         const distance = computeDistanceMeters(station.position, target.endPosition);
 
         if (distance <= radioCoverageRadiusMeters) {
           engaged.add(station.id);
-          return true;
+          // return true;
         }
 
-        return false;
+        // return false;
       });
 
-      if (isCovered) {
-        covered.add(target.id);
-      }
+      // if (isCovered) {
+      //   covered.add(target.id);
+      // }
     });
 
-    return { engagedStations: engaged, coveredTargets: covered };
+    return engaged; //{ engagedStations: engaged, coveredTargets: covered };
   }, [targets]);
+
+  const activeStation = useMemo(() => {
+    if (!activeStationId) {
+      return null;
+    }
+
+    return radioStations.find((station) => station.id === activeStationId) ?? null;
+  }, [activeStationId]);
 
   const getDroneIcon = useCallback((riskLevel, heading) => {
     const normalizedHeading = Math.round(heading);
@@ -1232,6 +1246,14 @@ function App() {
             {showRadioStations &&
               radioStations.map((station) => {
                 const isStationEngaged = engagedStations.has(station.id);
+                const isActiveStation = activeStationId === station.id;
+                const coverageClassName = [
+                  'radio-coverage',
+                  isStationEngaged ? 'radio-coverage--active' : '',
+                  isActiveStation ? 'radio-coverage--selected' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ');
 
                 return (
                   <Fragment key={station.id}>
@@ -1247,12 +1269,19 @@ function App() {
                       radius={radioCoverageRadiusMeters}
                       pathOptions={{
                         ...radioCoverageStyle,
-                        className: isStationEngaged
-                          ? 'radio-coverage radio-coverage--active'
-                          : 'radio-coverage',
+                        className: coverageClassName,
+                      }}
+                      eventHandlers={{
+                        click: () => setActiveStationId(station.id),
                       }}
                     />
-                    <Marker position={station.position} icon={radioStationIcon}>
+                    <Marker
+                      position={station.position}
+                      icon={radioStationIcon}
+                      eventHandlers={{
+                        click: () => setActiveStationId(station.id),
+                      }}
+                    >
                       <Tooltip direction="top" offset={[0, -28]} interactive>
                         <div className="radio-tooltip">
                           <strong>{station.name}</strong>
@@ -1299,7 +1328,7 @@ function App() {
               const pathColor = mitigatedTargets[target.id]
                 ? mitigationColor
                 : riskColors[target.riskLevel];
-              const isTargetCovered = coveredTargets.has(target.id);
+              // const isTargetCovered = coveredTargets.has(target.id);
 
               return (
                 <Fragment key={target.id}>
@@ -1341,22 +1370,22 @@ function App() {
                       Launch position: {formatCoordinate(target.startPosition)}
                     </Popup>
                   </CircleMarker>
-                  {isTargetCovered && (
-                    <CircleMarker
-                      center={target.endPosition}
-                      radius={18}
-                      interactive={false}
-                      pane="shadowPane"
-                      pathOptions={{
-                        color: '#1d4ed8',
-                        weight: 2,
-                        fill: true,
-                        fillColor: '#3b82f6',
-                        fillOpacity: 0.18,
-                        className: 'drone-coverage',
-                      }}
-                    />
-                  )}
+                  {/*{isTargetCovered && (*/}
+                  {/*  <CircleMarker*/}
+                  {/*    center={target.endPosition}*/}
+                  {/*    radius={18}*/}
+                  {/*    interactive={false}*/}
+                  {/*    pane="shadowPane"*/}
+                  {/*    pathOptions={{*/}
+                  {/*      color: '#1d4ed8',*/}
+                  {/*      weight: 2,*/}
+                  {/*      fill: true,*/}
+                  {/*      fillColor: '#3b82f6',*/}
+                  {/*      fillOpacity: 0.18,*/}
+                  {/*      className: 'drone-coverage',*/}
+                  {/*    }}*/}
+                  {/*  />*/}
+                  {/*)}*/}
                   <Marker
                     ref={(instance) => {
                       if (instance) {
@@ -1394,6 +1423,63 @@ function App() {
               );
             })}
           </MapContainer>
+          {activeStation && (
+            <div
+              className="station-info-panel"
+              role="dialog"
+              aria-modal="false"
+              aria-label={`${activeStation.name} coverage details`}
+            >
+              <div className="station-info-panel__header">
+                <div>
+                  <h3>{activeStation.name}</h3>
+                  <p>Coverage radius: 30 km</p>
+                </div>
+                <button
+                  type="button"
+                  className="station-info-panel__close"
+                  aria-label="Close station details"
+                  onClick={() => setActiveStationId(null)}
+                >
+                  ×
+                </button>
+              </div>
+              <div className="station-info-panel__content">
+                <div className="radio-tooltip__actions">
+                  <button
+                    type="button"
+                    className="radio-tooltip__notify-button"
+                    onClick={() => handleNotifyStation(activeStation.id)}
+                    disabled={
+                      !engagedStations.has(activeStation.id) ||
+                      notifyingStations.has(activeStation.id)
+                    }
+                  >
+                    Notify
+                  </button>
+                  {!engagedStations.has(activeStation.id) && (
+                    <span className="radio-tooltip__status radio-tooltip__status--idle">
+                      No tracked drones inside coverage
+                    </span>
+                  )}
+                  {engagedStations.has(activeStation.id) &&
+                    !notifyingStations.has(activeStation.id) && (
+                      <span className="radio-tooltip__status radio-tooltip__status--armed">
+                        Drone detected in airspace
+                      </span>
+                    )}
+                  {notifyingStations.has(activeStation.id) && (
+                    <span
+                      className="radio-tooltip__status radio-tooltip__status--sent"
+                      role="status"
+                    >
+                      Notification dispatched
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
           <div className="map-legend" aria-label="Risk legend">
             <h3>Risk Legend</h3>
             <ul>
