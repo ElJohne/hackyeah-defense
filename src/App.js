@@ -88,6 +88,8 @@ const actionDefinitions = {
   },
 };
 
+const actionFeedbackDuration = 3000;
+
 const rawTargets = [
   {
     id: 1,
@@ -450,6 +452,7 @@ function App() {
   const [selectedTargetId, setSelectedTargetId] = useState(null);
   const [toast, setToast] = useState(null);
   const [actionResults, setActionResults] = useState({});
+  const [visibleActionTooltips, setVisibleActionTooltips] = useState({});
   const [mitigatedTargets, setMitigatedTargets] = useState({});
   const [actionLog, setActionLog] = useState([]);
   const [riskFilters, setRiskFilters] = useState([]);
@@ -459,6 +462,7 @@ function App() {
   const trajectoryRefs = useRef({});
   const startMarkerRefs = useRef({});
   const endMarkerRefs = useRef({});
+  const actionTooltipTimersRef = useRef({});
   const droneIconCacheRef = useRef({});
   const mapRef = useRef(null);
   const polandCenter = [52.0976, 19.1451];
@@ -561,9 +565,16 @@ function App() {
       return undefined;
     }
 
-    const timer = setTimeout(() => setToast(null), 3000);
+    const timer = setTimeout(() => setToast(null), actionFeedbackDuration);
     return () => clearTimeout(timer);
   }, [toast]);
+
+  useEffect(
+    () => () => {
+      Object.values(actionTooltipTimersRef.current).forEach((timer) => clearTimeout(timer));
+    },
+    [],
+  );
 
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -841,14 +852,39 @@ function App() {
     const isReported = isSuccess && actionKey === 'report';
     const timestamp = new Date();
 
+    const actionTimestamp = Date.now();
+
     setActionResults((prev) => ({
       ...prev,
       [target.id]: {
         label: definition.label,
         message,
         status,
+        timestamp: actionTimestamp,
       },
     }));
+
+    setVisibleActionTooltips((prev) => ({
+      ...prev,
+      [target.id]: true,
+    }));
+
+    if (actionTooltipTimersRef.current[target.id]) {
+      clearTimeout(actionTooltipTimersRef.current[target.id]);
+    }
+
+    actionTooltipTimersRef.current[target.id] = setTimeout(() => {
+      setVisibleActionTooltips((prev) => {
+        if (!prev[target.id]) {
+          return prev;
+        }
+
+        const { [target.id]: _removed, ...rest } = prev;
+        return rest;
+      });
+
+      delete actionTooltipTimersRef.current[target.id];
+    }, actionFeedbackDuration);
 
     setMitigatedTargets((prev) => ({
       ...prev,
@@ -876,7 +912,7 @@ function App() {
       label: `${definition.label} · ${target.callSign}`,
       message,
       status,
-      timestamp: Date.now(),
+      timestamp: actionTimestamp,
     });
 
     const nextActionsForTarget = [...actionsUsedByTarget, actionKey];
@@ -1130,7 +1166,7 @@ function App() {
                       <br />
                       Risk: {target.riskLevel} ({target.riskScore})
                     </Popup>
-                    {actionResults[target.id] && (
+                    {actionResults[target.id] && visibleActionTooltips[target.id] && (
                       <Tooltip
                         direction="top"
                         offset={[0, -26]}
