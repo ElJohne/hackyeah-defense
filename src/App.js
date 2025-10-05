@@ -246,6 +246,7 @@ const rawTargets = [
       missingRID: true,
       repeatSighting: true,
       nearMannedCorridor: true,
+      noSpeedChangeWaterLand: true,
     },
     actionOutcomes: {
       simDetach: 'allowed',
@@ -305,6 +306,7 @@ const rawTargets = [
       missingRID: true,
       repeatSighting: false,
       nearMannedCorridor: true,
+      noSpeedChangeWaterLand: false,
     },
     actionOutcomes: {
       simDetach: 'no-effect',
@@ -362,6 +364,7 @@ const rawTargets = [
       missingRID: false,
       repeatSighting: true,
       nearMannedCorridor: false,
+      noSpeedChangeWaterLand: false,
     },
     actionOutcomes: {
       simDetach: 'allowed',
@@ -434,6 +437,7 @@ const rawTargets = [
       missingRID: false,
       repeatSighting: true,
       nearMannedCorridor: false,
+      noSpeedChangeWaterLand: false,
     },
     actionOutcomes: {
       simDetach: 'no-effect',
@@ -468,6 +472,7 @@ const rawTargets = [
       missingRID: false,
       repeatSighting: false,
       nearMannedCorridor: false,
+      noSpeedChangeWaterLand: true,
     },
     actionOutcomes: {
       simDetach: 'no-effect',
@@ -527,6 +532,7 @@ const rawTargets = [
       missingRID: true,
       repeatSighting: true,
       nearMannedCorridor: false,
+      noSpeedChangeWaterLand: true,
     },
     actionOutcomes: {
       simDetach: 'allowed',
@@ -572,6 +578,7 @@ const rawTargets = [
       missingRID: true,
       repeatSighting: false,
       nearMannedCorridor: true,
+      noSpeedChangeWaterLand: true,
     },
     actionOutcomes: {
       simDetach: 'blocked',
@@ -729,8 +736,11 @@ function App() {
       rawTargets.map((target, index) => {
         const riskFactors = {
           ...target.riskFactors,
-          noSpeedChangeWaterLand: Math.random() < 0.5,
         };
+
+        if (riskFactors.noSpeedChangeWaterLand === undefined) {
+          riskFactors.noSpeedChangeWaterLand = false;
+        }
 
         return {
           ...computeRisk(riskFactors),
