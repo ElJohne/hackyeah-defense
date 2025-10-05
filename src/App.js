@@ -1074,6 +1074,95 @@ function App() {
     setDetailsTargetId(targetId);
   };
 
+  const moveTargetToEnd = useCallback((targetId) => {
+    setTargetOrder((previousOrder) => {
+      if (!previousOrder.includes(targetId)) {
+        return previousOrder;
+      }
+
+      const nextOrder = previousOrder.filter((id) => id !== targetId);
+      nextOrder.push(targetId);
+      return nextOrder;
+    });
+  }, []);
+
+  const animateTargetCompletion = useCallback(
+    (targetId) => {
+      const listItem = listRefs.current[targetId];
+      const listElement = listItem?.parentElement;
+
+      if (!listItem || !listElement) {
+        moveTargetToEnd(targetId);
+        return;
+      }
+
+      const distanceToEnd =
+        listElement.scrollHeight - listItem.offsetTop - listItem.offsetHeight;
+
+      if (distanceToEnd <= 0) {
+        moveTargetToEnd(targetId);
+        return;
+      }
+
+      if (typeof requestAnimationFrame !== 'function') {
+        moveTargetToEnd(targetId);
+        return;
+      }
+
+      listItem.classList.add('target-card--transitioning');
+      listItem.style.willChange = 'transform';
+      listItem.style.zIndex = '10';
+      listItem.style.transition = 'transform 0.8s cubic-bezier(0.22, 0.61, 0.36, 1)';
+      listItem.style.transform = 'translateY(0)';
+
+      requestAnimationFrame(() => {
+        listItem.style.transform = `translateY(${distanceToEnd}px)`;
+      });
+
+      const cleanupStyles = () => {
+        const node = listRefs.current[targetId];
+        if (!node) {
+          return;
+        }
+
+        node.style.transition = '';
+        node.style.transform = '';
+        node.style.willChange = '';
+        node.style.zIndex = '';
+        node.classList.remove('target-card--transitioning');
+      };
+
+      const finalize = () => {
+        moveTargetToEnd(targetId);
+        requestAnimationFrame(cleanupStyles);
+      };
+
+      let fallbackTimer = null;
+
+      const handleTransitionEnd = (event) => {
+        if (event && event.propertyName && event.propertyName !== 'transform') {
+          return;
+        }
+
+        if (fallbackTimer) {
+          clearTimeout(fallbackTimer);
+          fallbackTimer = null;
+        }
+
+        listItem.removeEventListener('transitionend', handleTransitionEnd);
+        finalize();
+      };
+
+      listItem.addEventListener('transitionend', handleTransitionEnd);
+
+      fallbackTimer = setTimeout(() => {
+        listItem.removeEventListener('transitionend', handleTransitionEnd);
+        finalize();
+      }, 900);
+    },
+    [moveTargetToEnd],
+  );
+
   const handleAction = (target, actionKey) => {
     const definition = actionDefinitions[actionKey];
     const outcome = target.actionOutcomes?.[actionKey];
@@ -1163,15 +1252,7 @@ function App() {
     }));
 
     if (nextActionsForTarget.length >= totalActionCount) {
-      setTargetOrder((previousOrder) => {
-        if (!previousOrder.includes(target.id)) {
-          return previousOrder;
-        }
-
-        const nextOrder = previousOrder.filter((id) => id !== target.id);
-        nextOrder.push(target.id);
-        return nextOrder;
-      });
+      animateTargetCompletion(target.id);
     }
   };
 
