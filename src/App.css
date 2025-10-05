@@ -196,10 +196,9 @@ body {
 }
 
 .target-card {
-  display: grid;
-  grid-template-columns: auto 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 0.75rem;
-  align-items: flex-start;
   background-color: #f8f9fb;
   border: 1px solid #e5e7eb;
   border-radius: 0.75rem;
@@ -209,6 +208,7 @@ body {
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease,
     background-color 0.2s ease;
   user-select: none;
+  overflow: hidden;
 }
 
 .target-card:hover {
@@ -240,11 +240,18 @@ body {
   background-color: #eef2ff;
 }
 
+
 .risk-indicator {
   width: 12px;
   height: 12px;
   border-radius: 999px;
   box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.1);
+}
+
+.target-card__risk-header {
+  height: 0.5rem;
+  border-radius: 0.75rem 0.75rem 0 0;
+  margin: -0.75rem -1rem 0.25rem;
 }
 
 .target-content {

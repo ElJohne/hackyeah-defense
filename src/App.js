@@ -1404,8 +1404,8 @@ function App() {
                     tabIndex={0}
                     aria-pressed={isSelected}
                   >
-                    <span
-                      className="risk-indicator"
+                    <div
+                      className="target-card__risk-header"
                       style={{ backgroundColor: riskColors[target.riskLevel] }}
                       aria-hidden
                     />
