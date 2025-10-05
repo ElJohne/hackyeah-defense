@@ -681,6 +681,7 @@ function App() {
   const droneIconCacheRef = useRef({});
   const mapRef = useRef(null);
   const notificationTimers = useRef({});
+  const stationPanelDismissTimerRef = useRef(null);
   const polandCenter = [52.0976, 19.1451];
   const polandZoom = 6.5;
   const mapMinZoom = 5.5;
@@ -766,7 +767,7 @@ function App() {
     });
   }, []);
 
-  const handleNotifyStation = useCallback((stationId) => {
+  const handleNotifyStation = useCallback((stationId, { dismissPanel = false } = {}) => {
     setNotifyingStations((prev) => {
       const next = new Set(prev);
       next.add(stationId);
@@ -786,6 +787,17 @@ function App() {
 
       delete notificationTimers.current[stationId];
     }, 2400);
+
+    if (dismissPanel) {
+      if (stationPanelDismissTimerRef.current) {
+        clearTimeout(stationPanelDismissTimerRef.current);
+      }
+
+      stationPanelDismissTimerRef.current = setTimeout(() => {
+        setActiveStationId((currentId) => (currentId === stationId ? null : currentId));
+        stationPanelDismissTimerRef.current = null;
+      }, 1000);
+    }
   }, []);
 
   useEffect(() => {
@@ -795,6 +807,10 @@ function App() {
       Object.values(timersRef).forEach((timeoutId) => {
         clearTimeout(timeoutId);
       });
+
+      if (stationPanelDismissTimerRef.current) {
+        clearTimeout(stationPanelDismissTimerRef.current);
+      }
     };
   }, [notificationTimers]);
 
@@ -804,6 +820,11 @@ function App() {
 
   useEffect(() => {
     if (!showRadioStations) {
+      if (stationPanelDismissTimerRef.current) {
+        clearTimeout(stationPanelDismissTimerRef.current);
+        stationPanelDismissTimerRef.current = null;
+      }
+
       setActiveStationId(null);
     }
   }, [showRadioStations]);
@@ -851,6 +872,25 @@ function App() {
 
     return radioStations.find((station) => station.id === activeStationId) ?? null;
   }, [activeStationId]);
+  const handleStationSelect = useCallback((stationId) => {
+    if (stationPanelDismissTimerRef.current) {
+      clearTimeout(stationPanelDismissTimerRef.current);
+      stationPanelDismissTimerRef.current = null;
+    }
+
+    setActiveStationId(stationId);
+  }, []);
+  const handleStationPanelClose = useCallback(() => {
+    if (stationPanelDismissTimerRef.current) {
+      clearTimeout(stationPanelDismissTimerRef.current);
+      stationPanelDismissTimerRef.current = null;
+    }
+
+    setActiveStationId(null);
+  }, []);
+  const activeStationIsEngaged = activeStation
+    ? engagedStations.has(activeStation.id)
+    : false;
   const totalActionCount = useMemo(() => Object.keys(actionDefinitions).length, []);
 
   const getDroneIcon = useCallback((riskLevel, heading) => {
@@ -1541,14 +1581,14 @@ function App() {
                         className: coverageClassName,
                       }}
                       eventHandlers={{
-                        click: () => setActiveStationId(station.id),
+                        click: () => handleStationSelect(station.id),
                       }}
                     />
                     <Marker
                       position={station.position}
                       icon={radioStationIcon}
                       eventHandlers={{
-                        click: () => setActiveStationId(station.id),
+                        click: () => handleStationSelect(station.id),
                       }}
                     >
                       <Tooltip direction="top" offset={[0, -28]} interactive>
@@ -1692,7 +1732,7 @@ function App() {
               );
             })}
           </MapContainer>
-          {activeStation && (
+          {activeStation && activeStationIsEngaged && (
             <div
               className="station-info-panel"
               role="dialog"
@@ -1708,7 +1748,7 @@ function App() {
                   type="button"
                   className="station-info-panel__close"
                   aria-label="Close station details"
-                  onClick={() => setActiveStationId(null)}
+                  onClick={handleStationPanelClose}
                 >
                   ×
                 </button>
@@ -1718,25 +1758,16 @@ function App() {
                   <button
                     type="button"
                     className="radio-tooltip__notify-button"
-                    onClick={() => handleNotifyStation(activeStation.id)}
-                    disabled={
-                      !engagedStations.has(activeStation.id) ||
-                      notifyingStations.has(activeStation.id)
-                    }
+                    onClick={() => handleNotifyStation(activeStation.id, { dismissPanel: true })}
+                    disabled={!activeStationIsEngaged || notifyingStations.has(activeStation.id)}
                   >
                     Notify
                   </button>
-                  {!engagedStations.has(activeStation.id) && (
-                    <span className="radio-tooltip__status radio-tooltip__status--idle">
-                      No tracked drones inside coverage
+                  {!notifyingStations.has(activeStation.id) && (
+                    <span className="radio-tooltip__status radio-tooltip__status--armed">
+                      Drone detected in airspace
                     </span>
                   )}
-                  {engagedStations.has(activeStation.id) &&
-                    !notifyingStations.has(activeStation.id) && (
-                      <span className="radio-tooltip__status radio-tooltip__status--armed">
-                        Drone detected in airspace
-                      </span>
-                    )}
                   {notifyingStations.has(activeStation.id) && (
                     <span
                       className="radio-tooltip__status radio-tooltip__status--sent"
