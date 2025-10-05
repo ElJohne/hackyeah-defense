@@ -233,6 +233,13 @@ body {
   background-color: #eff6ff;
 }
 
+.target-card--transitioning {
+  pointer-events: none;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.25);
+  border-color: #2563eb;
+  background-color: #eef2ff;
+}
+
 .risk-indicator {
   width: 12px;
   height: 12px;
