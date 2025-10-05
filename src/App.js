@@ -1564,8 +1564,12 @@ function App() {
                   .filter(Boolean)
                   .join(' ');
 
+                const coverageKey = `${station.id}-${
+                  isStationEngaged ? 'engaged' : 'idle'
+                }-${isActiveStation ? 'selected' : 'default'}`;
+
                 return (
-                  <Fragment key={station.id}>
+                  <Fragment key={coverageKey}>
                     {notifyingStations.has(station.id) && (
                       <Marker
                         position={station.position}
