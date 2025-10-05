@@ -1112,7 +1112,7 @@ function App() {
       listItem.classList.add('target-card--transitioning');
       listItem.style.willChange = 'transform';
       listItem.style.zIndex = '10';
-      listItem.style.transition = 'transform 0.8s cubic-bezier(0.22, 0.61, 0.36, 1)';
+      listItem.style.transition = 'transform 2s cubic-bezier(0.22, 0.61, 0.36, 1)';
       listItem.style.transform = 'translateY(0)';
 
       requestAnimationFrame(() => {
@@ -1266,10 +1266,10 @@ function App() {
             className={`layer-toggle${showRadioStations ? ' layer-toggle--active' : ''}`}
             onClick={toggleRadioStations}
             aria-pressed={showRadioStations}
-            aria-label={showRadioStations ? 'Hide mobile intercept nodes' : 'Show mobile intercept nodes'}
-            title={showRadioStations ? 'Hide mobile intercept nodes' : 'Show mobile intercept nodes'}
+            aria-label={showRadioStations ? 'Hide No-Fly Zones' : 'Show No-Fly Zones'}
+            title={showRadioStations ? 'Hide No-Fly Zones' : 'Show No-Fly Zones'}
           >
-            MIN
+            No-Fly Zones
           </button>
           <nav className="risk-filter" aria-label="Filter drones by risk level">
             {riskLevels.map((level) => {
